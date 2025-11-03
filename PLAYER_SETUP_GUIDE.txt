@@ -1,0 +1,96 @@
+FLIGHT SIMULATOR - PLAYER CONTROL SETUP GUIDE
+==============================================
+
+COMPLETED CHANGES:
+------------------
+✓ Updated PlayerController.cs to remove AI dependencies
+✓ Script now supports pure keyboard control
+
+UNITY CONFIGURATION STEPS:
+---------------------------
+
+1. REMOVE AI COMPONENTS FROM F15 PLANE:
+   - Select the "F15" object in the Hierarchy
+   - In the Inspector, find the "AI Controller" component
+   - Click the three dots (⋮) on the component
+   - Select "Remove Component"
+
+2. REMOVE DUPLICATE PLANE (if present):
+   - In Hierarchy, find "F15 (1)" object
+   - Right-click and select "Delete"
+
+3. VERIFY PLAYER SETUP:
+   - Select "Player" object in Hierarchy
+   - Ensure these components are attached:
+     ✓ Player Controller (Script)
+     ✓ Plane Camera (Script)
+   - In Player Controller component:
+     ✓ Camera: Drag "Main Camera" from Hierarchy
+     ✓ Plane: Drag "F15" from Hierarchy
+     ✓ Plane HUD: Drag "Canvas" from Hierarchy
+
+4. SIMPLIFY SCENE (OPTIONAL):
+   - Delete any extra AI planes
+   - Keep: Player, F15, Directional Light, Terrain, Runway, EventSystem, Canvas
+
+KEYBOARD CONTROLS:
+------------------
+Flight Controls:
+  W / S          - Throttle Up / Down
+  Arrow Up/Down  - Pitch (nose up/down)
+  Arrow Left/Right or A/D - Roll (banking turns)
+  Q / E          - Yaw (left/right rudder)
+
+Camera:
+  Mouse Movement - Look around (if enabled)
+
+Weapons:
+  Space          - Fire Missile
+  Left Mouse     - Fire Cannon
+
+Special:
+  F              - Toggle Flaps
+  H              - Toggle Help Dialog
+
+TESTING THE SETUP:
+------------------
+1. Click the Play button in Unity Editor
+2. The F15 plane should spawn in the air
+3. Use W to increase throttle
+4. Use Arrow keys to control the plane
+5. The camera should follow the plane smoothly
+6. HUD should display: Speed, Altitude, G-Force, Health, Throttle
+
+TROUBLESHOOTING:
+----------------
+Problem: Plane doesn't respond to keyboard
+Solution: 
+  - Check that AI Controller is removed from F15
+  - Verify Player Controller references are set correctly
+  - Ensure Input System package is installed
+
+Problem: Camera not following plane
+Solution:
+  - Check Plane Camera script on Main Camera
+  - Set F15 as the target plane in the script
+
+Problem: No HUD visible
+Solution:
+  - Ensure Canvas is enabled in Hierarchy
+  - Check Plane HUD script has correct references
+
+ENVIRONMENT OBJECTS TO KEEP:
+-----------------------------
+✓ Player (with Camera)
+✓ F15 (player's plane)
+✓ Directional Light
+✓ Terrain
+✓ Runway
+✓ EventSystem
+✓ Canvas (for HUD)
+
+OBJECTS TO REMOVE:
+------------------
+✗ F15 (1) - Duplicate plane
+✗ Any AI planes in the scene
+✗ AI Controller component from player's F15
