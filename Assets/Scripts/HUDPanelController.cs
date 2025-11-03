@@ -11,7 +11,6 @@ public class HUDPanelController : MonoBehaviour
     Text aoaText;
     Text gforceText;
     Bar throttleBar;
-    Bar healthBar;
     Text compassText;
 
     const float metersToKnots = 1.94384f;
@@ -62,12 +61,6 @@ public class HUDPanelController : MonoBehaviour
             throttleBar = throttle.GetComponent<Bar>();
         }
 
-        Transform health = transform.Find("HealthBar");
-        if (health != null)
-        {
-            healthBar = health.GetComponent<Bar>();
-        }
-
         Transform compass = transform.Find("Compass");
         if (compass != null)
         {
@@ -89,7 +82,6 @@ public class HUDPanelController : MonoBehaviour
         // G-Force: magnitude of acceleration divided by gravity
         float gForce = plane.LocalGForce.magnitude / 9.81f;
         float throttle = plane.Throttle * 100f;
-        float health = plane.Health;
         float heading = plane.transform.eulerAngles.y;
 
         // Update UI Text elements
@@ -116,11 +108,6 @@ public class HUDPanelController : MonoBehaviour
         if (throttleBar != null)
         {
             throttleBar.SetValue(plane.Throttle);
-        }
-
-        if (healthBar != null)
-        {
-            healthBar.SetValue(plane.Health / plane.MaxHealth);
         }
 
         if (compassText != null)

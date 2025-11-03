@@ -32,7 +32,6 @@ public class PlaneHUD : MonoBehaviour {
         float aoa = plane.AngleOfAttack * Mathf.Rad2Deg;
         float gForce = plane.LocalGForce.y / 9.81f;
         float throttle = plane.Throttle * 100f;
-        float health = plane.Health;
         float heading = plane.transform.eulerAngles.y;
 
         // Set up GUI style
@@ -60,9 +59,6 @@ public class PlaneHUD : MonoBehaviour {
         y += lineHeight;
         
         GUI.Label(new Rect(x, y, 230, lineHeight), $"Throttle: {throttle:0}%", style);
-        y += lineHeight;
-        
-        GUI.Label(new Rect(x, y, 230, lineHeight), $"Health: {health:0}", style);
         y += lineHeight;
         
         GUI.Label(new Rect(x, y, 230, lineHeight), $"Heading: {heading:0}°", style);
