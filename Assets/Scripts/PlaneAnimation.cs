@@ -36,37 +36,58 @@ public class PlaneAnimation : MonoBehaviour {
     [SerializeField]
     List<Transform> flaps;
 
+    [Header("Propeller (for drones)")]
+    [SerializeField]
+    Transform propeller;
+    [SerializeField]
+    float propellerMaxRPM = 2000f;
+    [SerializeField]
+    Vector3 propellerAxis = Vector3.forward;
+
     Plane plane;
     List<Transform> afterburnersTransforms;
     Dictionary<Transform, Quaternion> neutralPoses;
     Vector3 deflection;
     float airbrakePosition;
     float flapsPosition;
+    float propellerRotation;
 
     void Start() {
         plane = GetComponent<Plane>();
         afterburnersTransforms = new List<Transform>();
         neutralPoses = new Dictionary<Transform, Quaternion>();
 
-        foreach (var go in afterburnerGraphics) {
-            afterburnersTransforms.Add(go.GetComponent<Transform>());
+        // Safely initialize afterburner graphics (avoid null reference)
+        if (afterburnerGraphics != null) {
+            foreach (var go in afterburnerGraphics) {
+                if (go != null) {
+                    afterburnersTransforms.Add(go.GetComponent<Transform>());
+                }
+            }
         }
 
         AddNeutralPose(leftAileron);
         AddNeutralPose(rightAileron);
+        AddNeutralPose(propeller);
 
-        foreach (var t in elevators) {
-            AddNeutralPose(t);
+        if (elevators != null) {
+            foreach (var t in elevators) {
+                AddNeutralPose(t);
+            }
         }
 
-        foreach (var t in rudders) {
-            AddNeutralPose(t);
+        if (rudders != null) {
+            foreach (var t in rudders) {
+                AddNeutralPose(t);
+            }
         }
 
         AddNeutralPose(airbrake);
 
-        foreach (var t in flaps) {
-            AddNeutralPose(t);
+        if (flaps != null) {
+            foreach (var t in flaps) {
+                AddNeutralPose(t);
+            }
         }
     }
 
@@ -84,18 +105,29 @@ public class PlaneAnimation : MonoBehaviour {
     }
 
     void UpdateAfterburners() {
+        // Skip if no afterburner graphics assigned (for drones)
+        if (afterburnerGraphics == null || afterburnerGraphics.Count == 0) {
+            return;
+        }
+
         float throttle = plane.Throttle;
         float afterburnerT = Mathf.Clamp01(Mathf.InverseLerp(afterburnerThreshold, 1, throttle));
         float size = Mathf.Lerp(afterburnerMinSize, afterburnerMaxSize, afterburnerT);
 
         if (throttle >= afterburnerThreshold) {
-            for (int i = 0; i < afterburnerGraphics.Count; i++) {
-                afterburnerGraphics[i].SetActive(true);
-                afterburnersTransforms[i].localScale = new Vector3(size, size, size);
+            for (int i = 0; i < afterburnerGraphics.Count && i < afterburnersTransforms.Count; i++) {
+                if (afterburnerGraphics[i] != null) {
+                    afterburnerGraphics[i].SetActive(true);
+                    if (afterburnersTransforms[i] != null) {
+                        afterburnersTransforms[i].localScale = new Vector3(size, size, size);
+                    }
+                }
             }
         } else {
             for (int i = 0; i < afterburnerGraphics.Count; i++) {
-                afterburnerGraphics[i].SetActive(false);
+                if (afterburnerGraphics[i] != null) {
+                    afterburnerGraphics[i].SetActive(false);
+                }
             }
         }
     }
@@ -114,17 +146,37 @@ public class PlaneAnimation : MonoBehaviour {
             leftAileron.localRotation = CalculatePose(leftAileron, Quaternion.Euler(-deflection.z * maxAileronDeflection, 0, 0));
         }
 
-        foreach (var t in elevators) {
-            if (t != null) {
-                t.localRotation = CalculatePose(t, Quaternion.Euler(deflection.x * maxElevatorDeflection, 0, 0));
+        if (elevators != null) {
+            foreach (var t in elevators) {
+                if (t != null) {
+                    t.localRotation = CalculatePose(t, Quaternion.Euler(deflection.x * maxElevatorDeflection, 0, 0));
+                }
             }
         }
 
-        foreach (var t in rudders) {
-            if (t != null) {
-                t.localRotation = CalculatePose(t, Quaternion.Euler(0, -deflection.y * maxRudderDeflection, 0));
+        if (rudders != null) {
+            foreach (var t in rudders) {
+                if (t != null) {
+                    t.localRotation = CalculatePose(t, Quaternion.Euler(0, -deflection.y * maxRudderDeflection, 0));
+                }
             }
         }
+    }
+
+    void UpdatePropeller(float dt) {
+        if (propeller == null) return;
+
+        // Calculate RPM based on throttle
+        float targetRPM = plane.Throttle * propellerMaxRPM;
+        
+        // Convert RPM to degrees per second
+        float degreesPerSecond = (targetRPM / 60f) * 360f;
+        
+        // Update rotation
+        propellerRotation += degreesPerSecond * dt;
+        
+        // Apply rotation
+        propeller.Rotate(propellerAxis * degreesPerSecond * dt, Space.Self);
     }
 
     void UpdateAirbrakes(float dt) {
@@ -142,9 +194,11 @@ public class PlaneAnimation : MonoBehaviour {
 
         flapsPosition = Utilities.MoveTo(flapsPosition, target, deflectionSpeed, dt);
 
-        foreach (var t in flaps) {
-            if (t != null) {
-                t.localRotation = CalculatePose(t, Quaternion.Euler(flapsPosition * flapsDeflection, 0, 0));
+        if (flaps != null) {
+            foreach (var t in flaps) {
+                if (t != null) {
+                    t.localRotation = CalculatePose(t, Quaternion.Euler(flapsPosition * flapsDeflection, 0, 0));
+                }
             }
         }
     }
@@ -156,5 +210,6 @@ public class PlaneAnimation : MonoBehaviour {
         UpdateControlSurfaces(dt);
         UpdateAirbrakes(dt);
         UpdateFlaps(dt);
+        UpdatePropeller(dt);
     }
 }
