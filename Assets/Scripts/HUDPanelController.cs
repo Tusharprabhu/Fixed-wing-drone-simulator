@@ -67,13 +67,38 @@ public class HUDPanelController : MonoBehaviour
             compassText = compass.GetComponentInChildren<Text>();
         }
 
-        // Debug what we found
-        Debug.Log($"Found texts: Speed={airspeedText != null}, Alt={altitudeText != null}, AOA={aoaText != null}, G={gforceText != null}");
+        // Check if all components were found
+        bool allFound = airspeedText != null && altitudeText != null && 
+                        aoaText != null && gforceText != null && 
+                        throttleBar != null && compassText != null;
+        
+        if (allFound)
+        {
+            Debug.Log("✅ HUD Panel Controller: All UI elements found and connected");
+        }
+        else
+        {
+            Debug.LogWarning($"⚠️ HUD missing elements: Speed={airspeedText != null}, Alt={altitudeText != null}, AOA={aoaText != null}, G={gforceText != null}, Throttle={throttleBar != null}, Compass={compassText != null}");
+        }
     }
 
     void Update()
     {
-        if (plane == null) return;
+        if (plane == null)
+        {
+            if (Time.frameCount % 300 == 0) // Every 5 seconds
+            {
+                Debug.LogWarning("HUD: Plane reference is missing!");
+            }
+            return;
+        }
+
+        // Safety check for Rigidbody
+        if (plane.Rigidbody == null)
+        {
+            Debug.LogError("HUD: Plane's Rigidbody is null!");
+            return;
+        }
 
         // Calculate all values
         float airspeed = plane.LocalVelocity.z * metersToKnots;
