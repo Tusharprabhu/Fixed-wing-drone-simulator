@@ -5,8 +5,7 @@ using UnityEngine;
 public class PlaneHUD : MonoBehaviour {
     Plane plane;
 
-    const float metersToKnots = 1.94384f;
-    const float metersToFeet = 3.28084f;
+    // Unity uses meters (distance) and m/s (velocity). Altitude now shown directly in meters.
 
     void Start() {
     }
@@ -27,10 +26,11 @@ public class PlaneHUD : MonoBehaviour {
         if (plane == null) return;
 
         // Calculate values
-        float airspeed = plane.LocalVelocity.z * metersToKnots;
-        float altitude = plane.Rigidbody.position.y * metersToFeet;
+        // LocalVelocity is in meters per second (m/s)
+        float airspeed = plane.LocalVelocity.z;
+        float altitude = plane.Rigidbody.position.y; // meters
         float aoa = plane.AngleOfAttack * Mathf.Rad2Deg;
-        float gForce = plane.LocalGForce.y / 9.81f;
+        float verticalAccel = plane.LocalGForce.y; // m/s^2
         float throttle = plane.Throttle * 100f;
         float heading = plane.transform.eulerAngles.y;
 
@@ -46,16 +46,16 @@ public class PlaneHUD : MonoBehaviour {
         float lineHeight = 25;
 
         // Display values
-        GUI.Label(new Rect(x, y, 230, lineHeight), $"Airspeed: {airspeed:0} kts", style);
+        GUI.Label(new Rect(x, y, 230, lineHeight), $"Airspeed: {airspeed:0} m/s", style);
         y += lineHeight;
         
-        GUI.Label(new Rect(x, y, 230, lineHeight), $"Altitude: {altitude:0} ft", style);
+        GUI.Label(new Rect(x, y, 230, lineHeight), $"Altitude: {altitude:0} m", style);
         y += lineHeight;
         
         GUI.Label(new Rect(x, y, 230, lineHeight), $"AOA: {aoa:0.1}°", style);
         y += lineHeight;
         
-        GUI.Label(new Rect(x, y, 230, lineHeight), $"G-Force: {gForce:0.1} G", style);
+        GUI.Label(new Rect(x, y, 230, lineHeight), $"Vertical Accel: {verticalAccel:0.1} m/s²", style);
         y += lineHeight;
         
         GUI.Label(new Rect(x, y, 230, lineHeight), $"Throttle: {throttle:0}%", style);
