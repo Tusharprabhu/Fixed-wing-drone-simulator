@@ -1812,10 +1812,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 100
   health: 100
-  maxThrust: 222411
+  maxThrust: 1000
   throttleSpeed: 1
-  gLimit: 4
-  gLimitPitch: 8
+  gLimit: 12
+  gLimitPitch: 12
   liftPower: 150
   liftAOACurve:
     serializedVersion: 2
@@ -1973,8 +1973,8 @@ MonoBehaviour:
   flapsAOABias: 0.5
   flapsDrag: 5
   flapsRetractSpeed: 125
-  turnSpeed: {x: 30, y: 15, z: 270}
-  turnAcceleration: {x: 60, y: 30, z: 540}
+  turnSpeed: {x: 90, y: 60, z: 180}
+  turnAcceleration: {x: 180, y: 120, z: 240}
   steeringCurve:
     serializedVersion: 2
     m_Curve:
@@ -2179,7 +2179,7 @@ MonoBehaviour:
   damageEffect: {fileID: 4759240730655406627}
   deathEffect: {fileID: 2026342940325216661}
   flapsDeployed: 1
-  initialSpeed: 0
+  initialSpeed: 15
   hardpoints:  missileReloadTime: 5
   missileDebounceTime: 0.125
   missilePrefab: {fileID: 819481780962912736, guid: 9a7180302f5e734428f16bf202054963,
@@ -2212,12 +2212,12 @@ MonoBehaviour:
   afterburnerThreshold: 0.75
   afterburnerMinSize: 0.25
   afterburnerMaxSize: 1
-  maxAileronDeflection: 20
-  maxElevatorDeflection: 20
-  maxRudderDeflection: 20
+  maxAileronDeflection: 40
+  maxElevatorDeflection: 35
+  maxRudderDeflection: 30
   airbrakeDeflection: 45
   flapsDeflection: 30
-  deflectionSpeed: 5
+  deflectionSpeed: 9
   rightAileron: {fileID: 7098709419306614170}
   leftAileron: {fileID: 9015424067187965477}
   elevators:

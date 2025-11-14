@@ -31,15 +31,15 @@ This is a physics-based flight simulator focused on delivering a realistic flyin
 1. Open project in Unity 2021.3.10f1 or later
 2. Load the Main scene
 3. Press Play
-4. Use W to throttle up, build speed to 175-200 knots
+4. Use W to throttle up, build speed to about 90–100 m/s (≈175–195 knots)
 5. Press Up Arrow to take off
 6. Fly!
 
 ## HUD Information
 
 All flight data is displayed in the top-right corner:
-- Airspeed (knots)
-- Altitude (feet)
+- Airspeed (m/s)
+- Altitude (m)
 - Angle of Attack (degrees)
 - G-Force
 - Throttle (visual bar)

@@ -27,14 +27,6 @@ public class Plane : MonoBehaviour {
     AnimationCurve rudderAOACurve;
     [SerializeField]
     AnimationCurve rudderInducedDragCurve;
-    [SerializeField]
-    float flapsLiftPower;
-    [SerializeField]
-    float flapsAOABias;
-    [SerializeField]
-    float flapsDrag;
-    [SerializeField]
-    float flapsRetractSpeed;
 
     [Header("Steering")]
     [SerializeField]
@@ -59,8 +51,6 @@ public class Plane : MonoBehaviour {
     AnimationCurve dragBottom;
     [SerializeField]
     Vector3 angularDrag;
-    [SerializeField]
-    float airbrakeDrag;
 
     [Header("Misc")]
     [SerializeField]
@@ -73,8 +63,6 @@ public class Plane : MonoBehaviour {
     GameObject damageEffect;
     [SerializeField]
     GameObject deathEffect;
-    [SerializeField]
-    bool flapsDeployed;
     [SerializeField]
     float initialSpeed;
 
@@ -97,20 +85,6 @@ public class Plane : MonoBehaviour {
     public Vector3 LocalAngularVelocity { get; private set; }
     public float AngleOfAttack { get; private set; }
     public float AngleOfAttackYaw { get; private set; }
-    public bool AirbrakeDeployed { get; private set; }
-
-    public bool FlapsDeployed {
-        get {
-            return flapsDeployed;
-        }
-        private set {
-            flapsDeployed = value;
-
-            foreach (var lg in landingGear) {
-                lg.enabled = value;
-            }
-        }
-    }
 
     void Start() {
         animation = GetComponent<PlaneAnimation>();
@@ -133,11 +107,7 @@ public class Plane : MonoBehaviour {
         controlInput = Vector3.ClampMagnitude(input, 1);
     }
 
-    public void ToggleFlaps() {
-        if (LocalVelocity.z < flapsRetractSpeed) {
-            FlapsDeployed = !FlapsDeployed;
-        }
-    }
+
 
     void Die() {
         throttleInput = 0;
@@ -155,25 +125,9 @@ public class Plane : MonoBehaviour {
         //throttle input is [-1, 1]
         //throttle is [0, 1]
         Throttle = Utilities.MoveTo(Throttle, target, throttleSpeed * Mathf.Abs(throttleInput), dt);
-
-        AirbrakeDeployed = Throttle == 0 && throttleInput == -1;
-
-        if (AirbrakeDeployed) {
-            foreach (var lg in landingGear) {
-                lg.sharedMaterial = landingGearBrakesMaterial;
-            }
-        } else {
-            foreach (var lg in landingGear) {
-                lg.sharedMaterial = landingGearDefaultMaterial;
-            }
-        }
     }
 
-    void UpdateFlaps() {
-        if (LocalVelocity.z > flapsRetractSpeed) {
-            FlapsDeployed = false;
-        }
-    }
+
 
     void CalculateAngleOfAttack() {
         if (LocalVelocity.sqrMagnitude < 0.1f) {
@@ -210,15 +164,12 @@ public class Plane : MonoBehaviour {
         var lv = LocalVelocity;
         var lv2 = lv.sqrMagnitude;  //velocity squared
 
-        float airbrakeDrag = AirbrakeDeployed ? this.airbrakeDrag : 0;
-        float flapsDrag = FlapsDeployed ? this.flapsDrag : 0;
-
         //calculate coefficient of drag depending on direction on velocity
         var coefficient = Utilities.Scale6(
             lv.normalized,
             dragRight.Evaluate(Mathf.Abs(lv.x)), dragLeft.Evaluate(Mathf.Abs(lv.x)),
             dragTop.Evaluate(Mathf.Abs(lv.y)), dragBottom.Evaluate(Mathf.Abs(lv.y)),
-            dragForward.Evaluate(Mathf.Abs(lv.z)) + airbrakeDrag + flapsDrag,   //include extra drag for forward coefficient
+            dragForward.Evaluate(Mathf.Abs(lv.z)),
             dragBack.Evaluate(Mathf.Abs(lv.z))
         );
 
@@ -251,12 +202,9 @@ public class Plane : MonoBehaviour {
     void UpdateLift() {
         if (LocalVelocity.sqrMagnitude < 1f) return;
 
-        float flapsLiftPower = FlapsDeployed ? this.flapsLiftPower : 0;
-        float flapsAOABias = FlapsDeployed ? this.flapsAOABias : 0;
-
         var liftForce = CalculateLift(
-            AngleOfAttack + (flapsAOABias * Mathf.Deg2Rad), Vector3.right,
-            liftPower + flapsLiftPower,
+            AngleOfAttack, Vector3.right,
+            liftPower,
             liftAOACurve,
             inducedDragCurve
         );
@@ -356,7 +304,6 @@ public class Plane : MonoBehaviour {
         //calculate at start, to capture any changes that happened externally
         CalculateState(dt);
         CalculateGForce(dt);
-        UpdateFlaps();
 
         //handle user input
         UpdateThrottle(dt);
