@@ -342,8 +342,12 @@ public class Plane : MonoBehaviour {
             Rigidbody.position = contact.point;
             Rigidbody.rotation = Quaternion.Euler(0, Rigidbody.rotation.eulerAngles.y, 0);
 
-            foreach (var go in graphics) {
-                go.SetActive(false);
+            if (graphics != null) {
+                foreach (var go in graphics) {
+                    if (go != null) {
+                        go.SetActive(false);
+                    }
+                }
             }
 
             return;

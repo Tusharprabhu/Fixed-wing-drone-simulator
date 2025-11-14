@@ -542,7 +542,7 @@ Transform:
   m_GameObject: {fileID: 342582035}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -4.28, z: 5.95}
+  m_LocalPosition: {x: 0, y: -3.19, z: 3.57}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1859,6 +1859,11 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
+      propertyPath: gLimit
+      value: 12
+      objectReference: {fileID: 0}
+    - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
+        type: 3}
       propertyPath: target
       value: 
       objectReference: {fileID: 0}
@@ -1874,13 +1879,18 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
+      propertyPath: gLimitPitch
+      value: 12
+      objectReference: {fileID: 0}
+    - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
+        type: 3}
       propertyPath: inducedDrag
       value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
       propertyPath: rudderPower
-      value: 4
+      value: 5
       objectReference: {fileID: 0}
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
@@ -1895,7 +1905,7 @@ PrefabInstance:
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
       propertyPath: turnSpeed.z
-      value: 1080
+      value: 700
       objectReference: {fileID: 0}
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
@@ -1915,7 +1925,7 @@ PrefabInstance:
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
       propertyPath: turnAcceleration.z
-      value: 1080
+      value: 700
       objectReference: {fileID: 0}
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
