@@ -132,18 +132,21 @@ public class Plane : MonoBehaviour {
 
     // Compute angle of attack (pitch) and yaw angle of attack from local velocity
     void CalculateAngleOfAttack() {
-        // If very slow, preserve the last valid AOA instead of snapping to zero
+        // If very slow, set AOA to zero
         if (LocalVelocity.sqrMagnitude < 0.1f) {
-            AngleOfAttack = lastValidAOA;
-            // keep previous yaw AOA
+            AngleOfAttack = 0;
+            AngleOfAttackYaw = 0;
             return;
         }
 
-        // Compute AOA: angle between velocity and horizontal (forward) axis
-        // Positive AOA = nose up relative to velocity
-        AngleOfAttack = Mathf.Atan2(-LocalVelocity.y, LocalVelocity.z);
-        AngleOfAttackYaw = Mathf.Atan2(LocalVelocity.x, LocalVelocity.z);
-        lastValidAOA = AngleOfAttack;
+        // Simple AOA: deviation angle from forward (Z) axis in XZ plane
+        // Just the vertical component vs forward speed
+        float forwardSpeed = LocalVelocity.z;
+        float verticalSpeed = LocalVelocity.y;
+        
+        // Angle between velocity and XZ plane (horizontal)
+        AngleOfAttack = Mathf.Atan2(verticalSpeed, Mathf.Abs(forwardSpeed));
+        AngleOfAttackYaw = Mathf.Atan2(LocalVelocity.x, Mathf.Abs(forwardSpeed));
     }
 
     // Estimate local G-force by differentiating velocity, applying guards and smoothing
