@@ -230,8 +230,8 @@ public class Plane : MonoBehaviour {
         var liftCoefficient = aoaCurve.Evaluate(angleOfAttack * Mathf.Rad2Deg);
         var liftForce = v2 * liftCoefficient * liftPower;
 
-        //lift is perpendicular to velocity
-        var liftDirection = Vector3.Cross(liftVelocity.normalized, rightAxis);
+        //lift is perpendicular to velocity - use correct cross product order for upward lift
+        var liftDirection = Vector3.Cross(rightAxis, liftVelocity.normalized);
         var lift = liftDirection * liftForce;
 
         //induced drag varies with square of lift coefficient
@@ -244,7 +244,10 @@ public class Plane : MonoBehaviour {
 
     // Compute and apply lift for wings and rudder (yaw), skipping at very low speeds
     void UpdateLift() {
-        if (LocalVelocity.sqrMagnitude < 1f) return;
+        if (LocalVelocity.sqrMagnitude < 1f) {
+            if (Time.frameCount % 60 == 0) Debug.Log("[Lift] Skipped: velocity too low");
+            return;
+        }
 
         var liftForce = CalculateLift(
             AngleOfAttack, Vector3.right,
@@ -254,6 +257,10 @@ public class Plane : MonoBehaviour {
         );
 
         var yawForce = CalculateLift(AngleOfAttackYaw, Vector3.up, rudderPower, rudderAOACurve, rudderInducedDragCurve);
+        
+        if (Time.frameCount % 60 == 0) {
+            Debug.Log($"[Lift] liftForce=({liftForce.x:F1},{liftForce.y:F1},{liftForce.z:F1}), yawForce=({yawForce.x:F1},{yawForce.y:F1},{yawForce.z:F1})");
+        }
 
         Rigidbody.AddRelativeForce(liftForce);
         Rigidbody.AddRelativeForce(yawForce);
@@ -322,6 +329,11 @@ public class Plane : MonoBehaviour {
         //calculate at start, to capture any changes that happened externally
         CalculateState(dt);
         CalculateGForce(dt);
+        
+        // Debug every 30 frames
+        if (Time.frameCount % 30 == 0) {
+            Debug.Log($"[Physics] vel={Rigidbody.linearVelocity.magnitude:F1} m/s, localVel=({LocalVelocity.x:F1},{LocalVelocity.y:F1},{LocalVelocity.z:F1}), AOA={AngleOfAttack*Mathf.Rad2Deg:F1}°, throttle={Throttle:F2}, throttleInput={throttleInput:F2}, Dead={Dead}");
+        }
 
         //handle user input
         UpdateThrottle(dt);
