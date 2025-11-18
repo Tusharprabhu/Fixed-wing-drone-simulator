@@ -79,6 +79,7 @@ public class Plane : MonoBehaviour {
     public Vector3 Velocity { get; private set; }
     public Vector3 LocalVelocity { get; private set; }
     public Vector3 LocalGForce { get; private set; }
+    public Vector3 LocalGForceWorld { get; private set; }
     public Vector3 LocalAngularVelocity { get; private set; }
     public float AngleOfAttack { get; private set; }
     public float AngleOfAttackYaw { get; private set; }
@@ -156,6 +157,9 @@ public class Plane : MonoBehaviour {
             lastVelocity = Velocity;
             return;
         }
+
+        // Store world-frame acceleration in local axes (includes gravity)
+        LocalGForceWorld = invRotation * acceleration;
 
         // Use proper acceleration (exclude gravity) so readings reflect felt Gs
         var properAccel = acceleration - Physics.gravity;
@@ -346,6 +350,8 @@ public class Plane : MonoBehaviour {
             // Reset G-force after crash to avoid large spikes from velocity drop
             lastVelocity = Rigidbody.linearVelocity;
             LocalGForce = Vector3.zero;
+            LocalGForceWorld = Vector3.zero;
+            LocalGForceWorld = Vector3.zero;
 
             if (graphics != null) {
                 foreach (var go in graphics) {
