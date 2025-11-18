@@ -1721,8 +1721,7 @@ GameObject:
   - component: {fileID: 1978894345480606398}
   - component: {fileID: 1030071069971577036}
   - component: {fileID: 3168297468136084144}
-  - component: {fileID: 2515223684704408108}
-  - component: {fileID: 3737572916587997159}
+  
   m_Layer: 8
   m_Name: F15
   m_TagString: Untagged
@@ -1814,8 +1813,6 @@ MonoBehaviour:
   health: 100
   maxThrust: 40
   throttleSpeed: 1
-  gLimit: 2
-  gLimitPitch: 3
   liftPower: 5
   liftAOACurve:
     serializedVersion: 2
@@ -2233,64 +2230,7 @@ MonoBehaviour:
   missileGraphics:
   - {fileID: 3131462138389546337}
   - {fileID: 9089529782288891038}
---- !u!114 &2515223684704408108
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8849735085998360814}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9e18d00c010aab047afd893019ac2ced, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  name: F-15
---- !u!114 &3737572916587997159
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8849735085998360814}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 523b6d4a45fda5a4990cea481944fdae, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  plane: {fileID: 1030071069971577036}
-  steeringSpeed: 5
-  minSpeed: 175
-  maxSpeed: 300
-  recoverSpeedMin: 125
-  recoverSpeedMax: 150
-  groundCollisionMask:
-    serializedVersion: 2
-    m_Bits: 1
-  groundCollisionDistance: 500
-  groundAvoidanceAngle: 10
-  groundAvoidanceMinSpeed: 125
-  groundAvoidanceMaxSpeed: 150
-  pitchUpThreshold: -15
-  fineSteeringAngle: 5
-  rollFactor: 0.01
-  yawFactor: 1
-  canUseMissiles: 1
-  canUseCannon: 1
-  missileLockFiringDelay: 1
-  missileFiringCooldown: 5
-  missileMinRange: 500
-  missileMaxRange: 1500
-  missileMaxFireAngle: 10
-  bulletSpeed: 1000
-  cannonRange: 1000
-  cannonMaxFireAngle: 2.5
-  cannonBurstLength: 0.5
-  cannonBurstCooldown: 2.5
-  minMissileDodgeDistance: 100
-  reactionDelayMin: 0.5
-  reactionDelayMax: 2.5
-  reactionDelayDistance: 1000
+ 
 --- !u!1001 &6432379551381147201
 PrefabInstance:
   m_ObjectHideFlags: 0

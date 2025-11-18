@@ -7,10 +7,7 @@ public class Plane : MonoBehaviour {
     float maxThrust;
     [SerializeField]
     float throttleSpeed;
-    [SerializeField]
-    float gLimit;
-    [SerializeField]
-    float gLimitPitch;
+    
 
     [Header("Lift")]
     [SerializeField]
@@ -141,9 +138,34 @@ public class Plane : MonoBehaviour {
     }
 
     void CalculateGForce(float dt) {
+        // Avoid bogus spikes: when dead/kinematic or bad dt, reset and exit
+        if (Dead || dt <= 0f) {
+            lastVelocity = Velocity;
+            LocalGForce = Vector3.zero;
+            return;
+        }
+
         var invRotation = Quaternion.Inverse(Rigidbody.rotation);
         var acceleration = (Velocity - lastVelocity) / dt;
-        LocalGForce = invRotation * acceleration;
+
+        // Guard against NaN/Infinity due to sudden engine state changes
+        if (
+            float.IsNaN(acceleration.x) || float.IsNaN(acceleration.y) || float.IsNaN(acceleration.z) ||
+            float.IsInfinity(acceleration.x) || float.IsInfinity(acceleration.y) || float.IsInfinity(acceleration.z)
+        ) {
+            lastVelocity = Velocity;
+            return;
+        }
+
+        // Light smoothing and clamping to avoid visual spikes during abrupt contacts
+        var localA = invRotation * acceleration;
+        const float maxAbs = 200f; // m/s^2 (~20g)
+        localA.x = Mathf.Clamp(localA.x, -maxAbs, maxAbs);
+        localA.y = Mathf.Clamp(localA.y, -maxAbs, maxAbs);
+        localA.z = Mathf.Clamp(localA.z, -maxAbs, maxAbs);
+
+        // Exponential smoothing
+        LocalGForce = Vector3.Lerp(LocalGForce, localA, 0.25f);
         lastVelocity = Velocity;
     }
 
@@ -231,34 +253,7 @@ public class Plane : MonoBehaviour {
         return Vector3.Cross(angularVelocity, velocity);
     }
 
-    Vector3 CalculateGForceLimit(Vector3 input) {
-        return Utilities.Scale6(input,
-            gLimit, gLimitPitch,    //pitch down, pitch up
-            gLimit, gLimit,         //yaw
-            gLimit, gLimit          //roll
-        ) * 9.81f;
-    }
-
-    float CalculateGLimiter(Vector3 controlInput, Vector3 maxAngularVelocity) {
-        if (controlInput.magnitude < 0.01f) {
-            return 1;
-        }
-
-        //if the player gives input with magnitude less than 1, scale up their input so that magnitude == 1
-        var maxInput = controlInput.normalized;
-
-        var limit = CalculateGForceLimit(maxInput);
-        var maxGForce = CalculateGForce(Vector3.Scale(maxInput, maxAngularVelocity), LocalVelocity);
-
-        if (maxGForce.magnitude > limit.magnitude) {
-            //example:
-            //maxGForce = 16G, limit = 8G
-            //so this is 8 / 16 or 0.5
-            return limit.magnitude / maxGForce.magnitude;
-        }
-
-        return 1;
-    }
+    
 
     float CalculateSteering(float dt, float angularVelocity, float targetVelocity, float acceleration) {
         var error = targetVelocity - angularVelocity;
@@ -270,9 +265,7 @@ public class Plane : MonoBehaviour {
         var speed = Mathf.Max(0, LocalVelocity.z);
         var steeringPower = steeringCurve.Evaluate(speed);
 
-        var gForceScaling = CalculateGLimiter(controlInput, turnSpeed * Mathf.Deg2Rad * steeringPower);
-
-        var targetAV = Vector3.Scale(controlInput, turnSpeed * steeringPower * gForceScaling);
+        var targetAV = Vector3.Scale(controlInput, turnSpeed * steeringPower);
         var av = LocalAngularVelocity * Mathf.Rad2Deg;
 
         var correction = new Vector3(
@@ -289,7 +282,7 @@ public class Plane : MonoBehaviour {
             Mathf.Clamp((targetAV.z - av.z) / turnAcceleration.z, -1, 1)
         );
 
-        var effectiveInput = (correctionInput + controlInput) * gForceScaling;
+        var effectiveInput = (correctionInput + controlInput);
 
         EffectiveInput = new Vector3(
             Mathf.Clamp(effectiveInput.x, -1, 1),
@@ -341,6 +334,10 @@ public class Plane : MonoBehaviour {
             Rigidbody.isKinematic = true;
             Rigidbody.position = contact.point;
             Rigidbody.rotation = Quaternion.Euler(0, Rigidbody.rotation.eulerAngles.y, 0);
+
+            // Reset G-force after crash to avoid large spikes from velocity drop
+            lastVelocity = Rigidbody.linearVelocity;
+            LocalGForce = Vector3.zero;
 
             if (graphics != null) {
                 foreach (var go in graphics) {
