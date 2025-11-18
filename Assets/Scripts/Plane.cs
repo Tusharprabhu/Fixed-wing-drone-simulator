@@ -79,11 +79,12 @@ public class Plane : MonoBehaviour {
     public Vector3 Velocity { get; private set; }
     public Vector3 LocalVelocity { get; private set; }
     public Vector3 LocalGForce { get; private set; }
-    public Vector3 LocalGForceWorld { get; private set; }
     public Vector3 LocalAngularVelocity { get; private set; }
     public float AngleOfAttack { get; private set; }
     public float AngleOfAttackYaw { get; private set; }
+    float lastValidAOA = 0f;
 
+    // Initialize references, store landing gear default material and set initial linear velocity
     void Start() {
         animation = GetComponent<PlaneAnimation>();
         Rigidbody = GetComponent<Rigidbody>();
@@ -93,20 +94,23 @@ public class Plane : MonoBehaviour {
         }
 
         Rigidbody.linearVelocity = Rigidbody.rotation * new Vector3(0, 0, initialSpeed);
+        
+        Debug.Log($"Plane Start: mass={Rigidbody.mass}, isKinematic={Rigidbody.isKinematic}, useGravity={Rigidbody.useGravity}, maxThrust={maxThrust}");
     }
 
+    // Set throttle input from player/controller. Input is ignored if plane is dead.
     public void SetThrottleInput(float input) {
         if (Dead) return;
         throttleInput = input;
     }
 
+    // Set control input (pitch/yaw/roll) from player/controller. Clamped to magnitude 1. Ignored if dead.
     public void SetControlInput(Vector3 input) {
         if (Dead) return;
         controlInput = Vector3.ClampMagnitude(input, 1);
     }
 
-
-
+    // Trigger death: stop engine, mark dead, pause damage effect and enable death effect
     void Die() {
         throttleInput = 0;
         Throttle = 0;
@@ -116,6 +120,7 @@ public class Plane : MonoBehaviour {
         deathEffect.SetActive(true);
     }
 
+    // Smoothly move throttle value toward target based on throttle input and throttleSpeed
     void UpdateThrottle(float dt) {
         float target = 0;
         if (throttleInput > 0) target = 1;
@@ -125,21 +130,25 @@ public class Plane : MonoBehaviour {
         Throttle = Utilities.MoveTo(Throttle, target, throttleSpeed * Mathf.Abs(throttleInput), dt);
     }
 
-
-
+    // Compute angle of attack (pitch) and yaw angle of attack from local velocity
     void CalculateAngleOfAttack() {
+        // If very slow, preserve the last valid AOA instead of snapping to zero
         if (LocalVelocity.sqrMagnitude < 0.1f) {
-            AngleOfAttack = 0;
-            AngleOfAttackYaw = 0;
+            AngleOfAttack = lastValidAOA;
+            // keep previous yaw AOA
             return;
         }
 
+        // Compute AOA: angle between velocity and horizontal (forward) axis
+        // Positive AOA = nose up relative to velocity
         AngleOfAttack = Mathf.Atan2(-LocalVelocity.y, LocalVelocity.z);
         AngleOfAttackYaw = Mathf.Atan2(LocalVelocity.x, LocalVelocity.z);
+        lastValidAOA = AngleOfAttack;
     }
 
+    // Estimate local G-force by differentiating velocity, applying guards and smoothing
     void CalculateGForce(float dt) {
-        // Keep only safety guards; do not constrain magnitude
+        // Avoid bogus spikes: when dead/kinematic or bad dt, reset and exit
         if (Dead || dt <= 0f) {
             lastVelocity = Velocity;
             LocalGForce = Vector3.zero;
@@ -149,7 +158,7 @@ public class Plane : MonoBehaviour {
         var invRotation = Quaternion.Inverse(Rigidbody.rotation);
         var acceleration = (Velocity - lastVelocity) / dt;
 
-        // Guard against invalid values
+        // Guard against NaN/Infinity due to sudden engine state changes
         if (
             float.IsNaN(acceleration.x) || float.IsNaN(acceleration.y) || float.IsNaN(acceleration.z) ||
             float.IsInfinity(acceleration.x) || float.IsInfinity(acceleration.y) || float.IsInfinity(acceleration.z)
@@ -158,29 +167,19 @@ public class Plane : MonoBehaviour {
             return;
         }
 
-        // Store world-frame acceleration in local axes (includes gravity)
-        LocalGForceWorld = invRotation * acceleration;
+        // Light smoothing and clamping to avoid visual spikes during abrupt contacts
+        var localA = invRotation * acceleration;
+        const float maxAbs = 200f; // m/s^2 (~20g)
+        localA.x = Mathf.Clamp(localA.x, -maxAbs, maxAbs);
+        localA.y = Mathf.Clamp(localA.y, -maxAbs, maxAbs);
+        localA.z = Mathf.Clamp(localA.z, -maxAbs, maxAbs);
 
-        // Use proper acceleration (exclude gravity) so readings reflect felt Gs
-        var properAccel = acceleration - Physics.gravity;
-        // Raw local proper acceleration (m/s^2), no clamping or smoothing by default
-        LocalGForce = invRotation * properAccel;
-
-        // Special-case guard: near-vertical dive with little lateral load
-        // Prevent numerical runaway by softly capping only in this posture
-        var forwardWorld = Rigidbody.rotation * Vector3.forward;
-        bool nearVerticalDown = Vector3.Dot(forwardWorld, Vector3.down) > 0.98f; // ~11.5 deg cone
-        bool lowLateralLoad = Mathf.Abs(LocalGForce.x) < 5f && Mathf.Abs(LocalGForce.z) < 5f;
-        if (nearVerticalDown && lowLateralLoad) {
-            const float maxAbsY = 300f; // m/s^2 (~30 g), cap only vertical in this posture
-            var lg = LocalGForce;
-            if (lg.y > maxAbsY) lg.y = maxAbsY;
-            if (lg.y < -maxAbsY) lg.y = -maxAbsY;
-            LocalGForce = lg;
-        }
+        // Exponential smoothing
+        LocalGForce = Vector3.Lerp(LocalGForce, localA, 0.25f);
         lastVelocity = Velocity;
     }
 
+    // Update cached kinematic state: world velocity, local velocity, local angular velocity and AOA
     void CalculateState(float dt) {
         var invRotation = Quaternion.Inverse(Rigidbody.rotation);
         Velocity = Rigidbody.linearVelocity;
@@ -190,10 +189,16 @@ public class Plane : MonoBehaviour {
         CalculateAngleOfAttack();
     }
 
+    // Apply forward thrust based on Throttle and maxThrust (relative to plane)
     void UpdateThrust() {
-        Rigidbody.AddRelativeForce(Throttle * maxThrust * Vector3.forward);
+        float thrust = Throttle * maxThrust;
+        if (Time.frameCount % 60 == 0) {
+            Debug.Log($"UpdateThrust: throttle={Throttle:F2}, thrust={thrust:F1}N, velocity={Rigidbody.linearVelocity.magnitude:F1} m/s");
+        }
+        Rigidbody.AddRelativeForce(thrust * Vector3.forward);
     }
 
+    // Compute aerodynamic drag from directional drag curves and apply as relative force
     void UpdateDrag() {
         var lv = LocalVelocity;
         var lv2 = lv.sqrMagnitude;  //velocity squared
@@ -212,6 +217,7 @@ public class Plane : MonoBehaviour {
         Rigidbody.AddRelativeForce(drag);
     }
 
+    // Calculate lift (and induced drag) for a given angle, axis and lift curves; returns force in local space
     Vector3 CalculateLift(float angleOfAttack, Vector3 rightAxis, float liftPower, AnimationCurve aoaCurve, AnimationCurve inducedDragCurve) {
         var liftVelocity = Vector3.ProjectOnPlane(LocalVelocity, rightAxis);    //project velocity onto YZ plane
         var v2 = liftVelocity.sqrMagnitude;                                     //square of velocity
@@ -233,6 +239,7 @@ public class Plane : MonoBehaviour {
         return lift + inducedDrag;
     }
 
+    // Compute and apply lift for wings and rudder (yaw), skipping at very low speeds
     void UpdateLift() {
         if (LocalVelocity.sqrMagnitude < 1f) return;
 
@@ -249,12 +256,14 @@ public class Plane : MonoBehaviour {
         Rigidbody.AddRelativeForce(yawForce);
     }
 
+    // Apply angular damping torque based on local angular velocity and configured angularDrag
     void UpdateAngularDrag() {
         var av = LocalAngularVelocity;
         var drag = av.sqrMagnitude * -av.normalized;    //squared, opposite direction of angular velocity
         Rigidbody.AddRelativeTorque(Vector3.Scale(drag, angularDrag), ForceMode.Acceleration);  //ignore rigidbody mass
     }
 
+    // Estimate a G-force vector from angular velocity and velocity (auxiliary calculation)
     Vector3 CalculateGForce(Vector3 angularVelocity, Vector3 velocity) {
         //estiamte G Force from angular velocity and velocity
         //Velocity = AngularVelocity * Radius
@@ -265,14 +274,14 @@ public class Plane : MonoBehaviour {
         return Vector3.Cross(angularVelocity, velocity);
     }
 
-    
-
+    // Compute a small change (clamped by acceleration * dt) to move angular velocity toward target
     float CalculateSteering(float dt, float angularVelocity, float targetVelocity, float acceleration) {
         var error = targetVelocity - angularVelocity;
         var accel = acceleration * dt;
         return Mathf.Clamp(error, -accel, accel);
     }
 
+    // Convert player control input into torques applied to the rigidbody, compute EffectiveInput for animation/UI
     void UpdateSteering(float dt) {
         var speed = Mathf.Max(0, LocalVelocity.z);
         var steeringPower = steeringCurve.Evaluate(speed);
@@ -303,6 +312,7 @@ public class Plane : MonoBehaviour {
         );
     }
 
+    // Main physics update: compute state, apply input (thrust, lift, steering, drag, angular drag), and handle dead alignment
     void FixedUpdate() {
         float dt = Time.fixedDeltaTime;
 
@@ -332,6 +342,7 @@ public class Plane : MonoBehaviour {
         CalculateState(dt);
     }
 
+    // Handle collisions: ignore contacts from landing gear, otherwise trigger crash/Die, make rigidbody kinematic and disable graphics
     void OnCollisionEnter(Collision collision) {
         for (int i = 0; i < collision.contactCount; i++) {
             var contact = collision.contacts[i];
@@ -350,8 +361,6 @@ public class Plane : MonoBehaviour {
             // Reset G-force after crash to avoid large spikes from velocity drop
             lastVelocity = Rigidbody.linearVelocity;
             LocalGForce = Vector3.zero;
-            LocalGForceWorld = Vector3.zero;
-            LocalGForceWorld = Vector3.zero;
 
             if (graphics != null) {
                 foreach (var go in graphics) {

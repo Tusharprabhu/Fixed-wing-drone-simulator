@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class PlaneHUD : MonoBehaviour {
     Plane plane;
@@ -73,5 +74,12 @@ public class PlaneHUD : MonoBehaviour {
         y += lineHeight;
         
         GUI.Label(new Rect(x, y, 230, lineHeight), $"Heading: {heading:0}°", style);
+
+        // Also update any UI Text named "AOA" in the scene so Canvas text shows the same value
+        var go = GameObject.Find("AOA");
+        if (go != null) {
+            var ui = go.GetComponent<Text>();
+            if (ui != null) ui.text = $"{aoa:0.1} AOA";
+        }
     }
 }
