@@ -138,7 +138,7 @@ public class Plane : MonoBehaviour {
     }
 
     void CalculateGForce(float dt) {
-        // Avoid bogus spikes: when dead/kinematic or bad dt, reset and exit
+        // Keep only safety guards; do not constrain magnitude
         if (Dead || dt <= 0f) {
             lastVelocity = Velocity;
             LocalGForce = Vector3.zero;
@@ -148,7 +148,7 @@ public class Plane : MonoBehaviour {
         var invRotation = Quaternion.Inverse(Rigidbody.rotation);
         var acceleration = (Velocity - lastVelocity) / dt;
 
-        // Guard against NaN/Infinity due to sudden engine state changes
+        // Guard against invalid values
         if (
             float.IsNaN(acceleration.x) || float.IsNaN(acceleration.y) || float.IsNaN(acceleration.z) ||
             float.IsInfinity(acceleration.x) || float.IsInfinity(acceleration.y) || float.IsInfinity(acceleration.z)
@@ -157,15 +157,23 @@ public class Plane : MonoBehaviour {
             return;
         }
 
-        // Light smoothing and clamping to avoid visual spikes during abrupt contacts
-        var localA = invRotation * acceleration;
-        const float maxAbs = 200f; // m/s^2 (~20g)
-        localA.x = Mathf.Clamp(localA.x, -maxAbs, maxAbs);
-        localA.y = Mathf.Clamp(localA.y, -maxAbs, maxAbs);
-        localA.z = Mathf.Clamp(localA.z, -maxAbs, maxAbs);
+        // Use proper acceleration (exclude gravity) so readings reflect felt Gs
+        var properAccel = acceleration - Physics.gravity;
+        // Raw local proper acceleration (m/s^2), no clamping or smoothing by default
+        LocalGForce = invRotation * properAccel;
 
-        // Exponential smoothing
-        LocalGForce = Vector3.Lerp(LocalGForce, localA, 0.25f);
+        // Special-case guard: near-vertical dive with little lateral load
+        // Prevent numerical runaway by softly capping only in this posture
+        var forwardWorld = Rigidbody.rotation * Vector3.forward;
+        bool nearVerticalDown = Vector3.Dot(forwardWorld, Vector3.down) > 0.98f; // ~11.5 deg cone
+        bool lowLateralLoad = Mathf.Abs(LocalGForce.x) < 5f && Mathf.Abs(LocalGForce.z) < 5f;
+        if (nearVerticalDown && lowLateralLoad) {
+            const float maxAbsY = 300f; // m/s^2 (~30 g), cap only vertical in this posture
+            var lg = LocalGForce;
+            if (lg.y > maxAbsY) lg.y = maxAbsY;
+            if (lg.y < -maxAbsY) lg.y = -maxAbsY;
+            LocalGForce = lg;
+        }
         lastVelocity = Velocity;
     }
 
