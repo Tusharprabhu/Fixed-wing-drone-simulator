@@ -30,10 +30,15 @@ public class PlaneHUD : MonoBehaviour {
         float airspeed = plane.LocalVelocity.z;
         float altitude = plane.Rigidbody.position.y; // meters
         float aoa = plane.AngleOfAttack * Mathf.Rad2Deg;
-        float verticalAccelProper = plane.LocalGForce.y; // m/s^2 (proper)
-        float verticalAccelWorld = plane.LocalGForceWorld.y; // m/s^2 (includes gravity)
-        float verticalGProper = verticalAccelProper / 9.80665f;
-        float verticalGWorld = verticalAccelWorld / 9.80665f;
+        
+        // Calculate elevation angle (angle from horizontal to velocity vector)
+        Vector3 localVel = plane.LocalVelocity;
+        Vector3 horizontalVel = new Vector3(localVel.x, 0, localVel.z);
+        float horizontalSpeed = horizontalVel.magnitude;
+        float elevationAngle = Mathf.Atan2(localVel.y, horizontalSpeed) * Mathf.Rad2Deg;
+        
+        float verticalAccel = plane.LocalGForce.y; // m/s^2
+        float verticalG = verticalAccel / 9.80665f; // g-units
         float throttle = plane.Throttle * 100f;
         float heading = plane.transform.eulerAngles.y;
 
@@ -58,9 +63,10 @@ public class PlaneHUD : MonoBehaviour {
         GUI.Label(new Rect(x, y, 230, lineHeight), $"AOA: {aoa:0.1}°", style);
         y += lineHeight;
         
-        GUI.Label(new Rect(x, y, 230, lineHeight), $"Vert Proper: {verticalAccelProper:0.1} m/s²  ({verticalGProper:0.00} g)", style);
+        GUI.Label(new Rect(x, y, 230, lineHeight), $"Elevation: {elevationAngle:0.1}°", style);
         y += lineHeight;
-        GUI.Label(new Rect(x, y, 230, lineHeight), $"Vert World:  {verticalAccelWorld:0.1} m/s²  ({verticalGWorld:0.00} g)", style);
+        
+        GUI.Label(new Rect(x, y, 230, lineHeight), $"Vertical G: {verticalG:0.2} g ({verticalAccel:0.1} m/s²)", style);
         y += lineHeight;
         
         GUI.Label(new Rect(x, y, 230, lineHeight), $"Throttle: {throttle:0}%", style);
