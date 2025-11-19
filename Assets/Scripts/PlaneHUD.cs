@@ -29,7 +29,8 @@ public class PlaneHUD : MonoBehaviour {
         // LocalVelocity is in meters per second (m/s)
         float airspeed = plane.LocalVelocity.z;
         float altitude = plane.Rigidbody.position.y; // meters
-        float aoa = plane.AngleOfAttack * Mathf.Rad2Deg;
+        // Use display-only AOA (pitch) which is already in degrees and has been inverted as requested
+        float aoa = plane.DisplayAOA;
         float verticalAccel = plane.LocalGForce.y; // m/s^2
         float throttle = plane.Throttle * 100f;
         float heading = plane.transform.eulerAngles.y;
