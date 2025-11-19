@@ -129,14 +129,27 @@ public class Plane : MonoBehaviour {
 
     // Compute angle of attack (pitch) and yaw angle of attack from local velocity
     void CalculateAngleOfAttack() {
+        // If very slow, set AOA to zero
         if (LocalVelocity.sqrMagnitude < 0.1f) {
             AngleOfAttack = 0;
             AngleOfAttackYaw = 0;
             return;
         }
 
-        AngleOfAttack = Mathf.Atan2(-LocalVelocity.y, Mathf.Abs(LocalVelocity.z));
-        AngleOfAttackYaw = Mathf.Atan2(LocalVelocity.x, Mathf.Abs(LocalVelocity.z));
+        float forwardSpeed = LocalVelocity.z;
+        float verticalSpeed = -LocalVelocity.y;  // Note: Y is inverted for proper AOA
+        float sideSpeed = LocalVelocity.x;
+        
+        // Prevent division by zero and extreme values
+        if (Mathf.Abs(forwardSpeed) < 0.01f) {
+            AngleOfAttack = 0;
+            AngleOfAttackYaw = 0;
+            return;
+        }
+        
+        // Calculate AOA with proper clamping to prevent extreme values
+        AngleOfAttack = Mathf.Clamp(Mathf.Atan2(verticalSpeed, Mathf.Abs(forwardSpeed)), -1.57f, 1.57f); // ±90°
+        AngleOfAttackYaw = Mathf.Clamp(Mathf.Atan2(sideSpeed, Mathf.Abs(forwardSpeed)), -1.57f, 1.57f);
     }
 
     // Estimate local G-force by differentiating velocity, applying guards and smoothing
@@ -176,6 +189,13 @@ public class Plane : MonoBehaviour {
     void CalculateState(float dt) {
         var invRotation = Quaternion.Inverse(Rigidbody.rotation);
         Velocity = Rigidbody.linearVelocity;
+        
+        // Clamp velocity to prevent physics explosion (max 200 m/s)
+        if (Velocity.magnitude > 200f) {
+            Velocity = Velocity.normalized * 200f;
+            Rigidbody.linearVelocity = Velocity;
+        }
+        
         LocalVelocity = invRotation * Velocity;  //transform world velocity into local space
         LocalAngularVelocity = invRotation * Rigidbody.angularVelocity;  //transform into local space
 
@@ -184,13 +204,19 @@ public class Plane : MonoBehaviour {
 
     // Apply forward thrust based on Throttle and maxThrust (relative to plane)
     void UpdateThrust() {
-        Rigidbody.AddRelativeForce(Throttle * maxThrust * Vector3.forward);
+        float thrustForce = Throttle * maxThrust;
+        // Clamp thrust to prevent runaway acceleration
+        thrustForce = Mathf.Clamp(thrustForce, 0, 100f); // Max 100N
+        Rigidbody.AddRelativeForce(thrustForce * Vector3.forward);
     }
 
     // Compute aerodynamic drag from directional drag curves and apply as relative force
     void UpdateDrag() {
         var lv = LocalVelocity;
         var lv2 = lv.sqrMagnitude;  //velocity squared
+        
+        // Skip if velocity is too small to avoid division by zero
+        if (lv2 < 0.01f) return;
 
         //calculate coefficient of drag depending on direction on velocity
         var coefficient = Utilities.Scale6(
@@ -202,6 +228,11 @@ public class Plane : MonoBehaviour {
         );
 
         var drag = coefficient.magnitude * lv2 * -lv.normalized;    //drag is opposite direction of velocity
+        
+        // Clamp drag force to prevent extreme values
+        if (drag.magnitude > 1000f) {
+            drag = drag.normalized * 1000f;
+        }
 
         Rigidbody.AddRelativeForce(drag);
     }
@@ -240,6 +271,14 @@ public class Plane : MonoBehaviour {
         );
 
         var yawForce = CalculateLift(AngleOfAttackYaw, Vector3.up, rudderPower, rudderAOACurve, rudderInducedDragCurve);
+
+        // Clamp lift forces to prevent physics explosion
+        if (liftForce.magnitude > 500f) {
+            liftForce = liftForce.normalized * 500f;
+        }
+        if (yawForce.magnitude > 200f) {
+            yawForce = yawForce.normalized * 200f;
+        }
 
         Rigidbody.AddRelativeForce(liftForce);
         Rigidbody.AddRelativeForce(yawForce);
