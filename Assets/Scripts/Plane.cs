@@ -348,15 +348,32 @@ public class Plane : MonoBehaviour {
         CalculateState(dt);
         CalculateGForce(dt);
         
-        // Continuous speed and angle logging
+        // Enhanced debug logging with gravity, G-force, and velocity components
         Vector3 eulerAngles = transform.eulerAngles;
-        Debug.Log($"Speed: {Rigidbody.linearVelocity.magnitude:F1} m/s | AOA: {AngleOfAttack*Mathf.Rad2Deg:F1}° | Angles X:{eulerAngles.x:F1}° Y:{eulerAngles.y:F1}° Z:{eulerAngles.z:F1}°");
+        Vector3 gravity = Physics.gravity;
+        Vector3 velocity = Rigidbody.linearVelocity;
+        Vector3 localVel = LocalVelocity;
+        Vector3 gForceLocal = LocalGForce;
+        
+        Debug.Log($"Speed: {velocity.magnitude:F1} m/s | Vel(X:{velocity.x:F1}, Y:{velocity.y:F1}, Z:{velocity.z:F1}) | " +
+                 $"LocalVel(X:{localVel.x:F1}, Y:{localVel.y:F1}, Z:{localVel.z:F1}) | AOA: {AngleOfAttack*Mathf.Rad2Deg:F1}° | " +
+                 $"G-Force: {gForceLocal.magnitude/9.81f:F1}g({gForceLocal.x/9.81f:F1}, {gForceLocal.y/9.81f:F1}, {gForceLocal.z/9.81f:F1}) | " +
+                 $"Gravity: {gravity.magnitude:F1} m/s² | Angles X:{eulerAngles.x:F1}° Y:{eulerAngles.y:F1}° Z:{eulerAngles.z:F1}°");
 
         //handle user input
         UpdateThrottle(dt);
 
         if (!Dead) {
             //apply updates
+            UpdateThrust();
+            UpdateLift();
+            UpdateSteering(dt);
+            UpdateDrag();
+            UpdateAngularDrag();
+            
+            // Debug force information
+            float thrustForce = Mathf.Clamp(Throttle * maxThrust, 0, 100f);
+            Debug.Log($"Forces - Thrust: {thrustForce:F1}N | Throttle: {Throttle:F2} | ThrottleInput: {throttleInput:F2}");
             UpdateThrust();
             UpdateLift();
             UpdateSteering(dt);
