@@ -90,9 +90,6 @@ public class Plane : MonoBehaviour {
 
         if (landingGear != null && landingGear.Count > 0 && landingGear[0] != null) {
             landingGearDefaultMaterial = landingGear[0].sharedMaterial;
-            Debug.Log($"Landing gear configured: {landingGear.Count} colliders");
-        } else {
-            Debug.Log("No landing gear assigned - plane will crash on any ground contact");
         }
 
         Rigidbody.linearVelocity = Rigidbody.rotation * new Vector3(0, 0, initialSpeed);
@@ -311,6 +308,10 @@ public class Plane : MonoBehaviour {
         //calculate at start, to capture any changes that happened externally
         CalculateState(dt);
         CalculateGForce(dt);
+        
+        // Continuous speed and angle logging
+        Vector3 eulerAngles = transform.eulerAngles;
+        Debug.Log($"Speed: {Rigidbody.linearVelocity.magnitude:F1} m/s | AOA: {AngleOfAttack*Mathf.Rad2Deg:F1}° | Angles X:{eulerAngles.x:F1}° Y:{eulerAngles.y:F1}° Z:{eulerAngles.z:F1}°");
 
         //handle user input
         UpdateThrottle(dt);
