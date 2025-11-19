@@ -82,20 +82,17 @@ public class Plane : MonoBehaviour {
     public Vector3 LocalAngularVelocity { get; private set; }
     public float AngleOfAttack { get; private set; }
     public float AngleOfAttackYaw { get; private set; }
-    float lastValidAOA = 0f;
 
     // Initialize references, store landing gear default material and set initial linear velocity
     void Start() {
         animation = GetComponent<PlaneAnimation>();
         Rigidbody = GetComponent<Rigidbody>();
 
-        if (landingGear.Count > 0) {
+        if (landingGear != null && landingGear.Count > 0) {
             landingGearDefaultMaterial = landingGear[0].sharedMaterial;
         }
 
         Rigidbody.linearVelocity = Rigidbody.rotation * new Vector3(0, 0, initialSpeed);
-        
-        Debug.Log($"Plane Start: mass={Rigidbody.mass}, isKinematic={Rigidbody.isKinematic}, useGravity={Rigidbody.useGravity}, maxThrust={maxThrust}");
     }
 
     // Set throttle input from player/controller. Input is ignored if plane is dead.
@@ -132,21 +129,14 @@ public class Plane : MonoBehaviour {
 
     // Compute angle of attack (pitch) and yaw angle of attack from local velocity
     void CalculateAngleOfAttack() {
-        // If very slow, set AOA to zero
         if (LocalVelocity.sqrMagnitude < 0.1f) {
             AngleOfAttack = 0;
             AngleOfAttackYaw = 0;
             return;
         }
 
-        // Simple AOA: deviation angle from forward (Z) axis in XZ plane
-        // Just the vertical component vs forward speed
-        float forwardSpeed = LocalVelocity.z;
-        float verticalSpeed = LocalVelocity.y;
-        
-        // Angle between velocity and XZ plane (horizontal)
-        AngleOfAttack = Mathf.Atan2(verticalSpeed, Mathf.Abs(forwardSpeed));
-        AngleOfAttackYaw = Mathf.Atan2(LocalVelocity.x, Mathf.Abs(forwardSpeed));
+        AngleOfAttack = Mathf.Atan2(-LocalVelocity.y, Mathf.Abs(LocalVelocity.z));
+        AngleOfAttackYaw = Mathf.Atan2(LocalVelocity.x, Mathf.Abs(LocalVelocity.z));
     }
 
     // Estimate local G-force by differentiating velocity, applying guards and smoothing
@@ -194,11 +184,7 @@ public class Plane : MonoBehaviour {
 
     // Apply forward thrust based on Throttle and maxThrust (relative to plane)
     void UpdateThrust() {
-        float thrust = Throttle * maxThrust;
-        if (Time.frameCount % 60 == 0) {
-            Debug.Log($"UpdateThrust: throttle={Throttle:F2}, thrust={thrust:F1}N, velocity={Rigidbody.linearVelocity.magnitude:F1} m/s");
-        }
-        Rigidbody.AddRelativeForce(thrust * Vector3.forward);
+        Rigidbody.AddRelativeForce(Throttle * maxThrust * Vector3.forward);
     }
 
     // Compute aerodynamic drag from directional drag curves and apply as relative force
@@ -230,8 +216,8 @@ public class Plane : MonoBehaviour {
         var liftCoefficient = aoaCurve.Evaluate(angleOfAttack * Mathf.Rad2Deg);
         var liftForce = v2 * liftCoefficient * liftPower;
 
-        //lift is perpendicular to velocity - use correct cross product order for upward lift
-        var liftDirection = Vector3.Cross(rightAxis, liftVelocity.normalized);
+        //lift is perpendicular to velocity
+        var liftDirection = Vector3.Cross(liftVelocity.normalized, rightAxis);
         var lift = liftDirection * liftForce;
 
         //induced drag varies with square of lift coefficient
@@ -244,10 +230,7 @@ public class Plane : MonoBehaviour {
 
     // Compute and apply lift for wings and rudder (yaw), skipping at very low speeds
     void UpdateLift() {
-        if (LocalVelocity.sqrMagnitude < 1f) {
-            if (Time.frameCount % 60 == 0) Debug.Log("[Lift] Skipped: velocity too low");
-            return;
-        }
+        if (LocalVelocity.sqrMagnitude < 1f) return;
 
         var liftForce = CalculateLift(
             AngleOfAttack, Vector3.right,
@@ -257,10 +240,6 @@ public class Plane : MonoBehaviour {
         );
 
         var yawForce = CalculateLift(AngleOfAttackYaw, Vector3.up, rudderPower, rudderAOACurve, rudderInducedDragCurve);
-        
-        if (Time.frameCount % 60 == 0) {
-            Debug.Log($"[Lift] liftForce=({liftForce.x:F1},{liftForce.y:F1},{liftForce.z:F1}), yawForce=({yawForce.x:F1},{yawForce.y:F1},{yawForce.z:F1})");
-        }
 
         Rigidbody.AddRelativeForce(liftForce);
         Rigidbody.AddRelativeForce(yawForce);
@@ -329,11 +308,6 @@ public class Plane : MonoBehaviour {
         //calculate at start, to capture any changes that happened externally
         CalculateState(dt);
         CalculateGForce(dt);
-        
-        // Debug every 30 frames
-        if (Time.frameCount % 30 == 0) {
-            Debug.Log($"[Physics] vel={Rigidbody.linearVelocity.magnitude:F1} m/s, localVel=({LocalVelocity.x:F1},{LocalVelocity.y:F1},{LocalVelocity.z:F1}), AOA={AngleOfAttack*Mathf.Rad2Deg:F1}°, throttle={Throttle:F2}, throttleInput={throttleInput:F2}, Dead={Dead}");
-        }
 
         //handle user input
         UpdateThrottle(dt);
