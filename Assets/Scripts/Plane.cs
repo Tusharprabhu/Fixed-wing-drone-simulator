@@ -137,7 +137,7 @@ public class Plane : MonoBehaviour {
         }
 
         float forwardSpeed = LocalVelocity.z;
-        float verticalSpeed = -LocalVelocity.y;  // Note: Y is inverted for proper AOA
+        float verticalSpeed = LocalVelocity.y;  // Positive Y is up in local space
         float sideSpeed = LocalVelocity.x;
         
         // Prevent division by zero and extreme values
@@ -147,9 +147,14 @@ public class Plane : MonoBehaviour {
             return;
         }
         
-        // Calculate AOA with proper clamping to prevent extreme values
-        AngleOfAttack = Mathf.Clamp(Mathf.Atan2(verticalSpeed, Mathf.Abs(forwardSpeed)), -1.57f, 1.57f); // ±90°
-        AngleOfAttackYaw = Mathf.Clamp(Mathf.Atan2(sideSpeed, Mathf.Abs(forwardSpeed)), -1.57f, 1.57f);
+        // AOA is the angle between aircraft's forward axis and actual velocity vector
+        // Positive AOA means nose up relative to flight path
+        AngleOfAttack = Mathf.Atan2(verticalSpeed, forwardSpeed); // No absolute value on forward speed
+        AngleOfAttackYaw = Mathf.Atan2(sideSpeed, Mathf.Abs(forwardSpeed));
+        
+        // Clamp to reasonable values
+        AngleOfAttack = Mathf.Clamp(AngleOfAttack, -1.57f, 1.57f); // ±90°
+        AngleOfAttackYaw = Mathf.Clamp(AngleOfAttackYaw, -1.57f, 1.57f);
     }
 
     // Estimate local G-force by differentiating velocity, applying guards and smoothing
@@ -162,26 +167,33 @@ public class Plane : MonoBehaviour {
         }
 
         var invRotation = Quaternion.Inverse(Rigidbody.rotation);
-        var acceleration = (Velocity - lastVelocity) / dt;
-
+        
+        // Calculate acceleration in world space
+        var worldAcceleration = (Velocity - lastVelocity) / dt;
+        
+        // Subtract gravity to get the acceleration due to forces (not gravity)
+        var netAcceleration = worldAcceleration - Physics.gravity;
+        
         // Guard against NaN/Infinity due to sudden engine state changes
         if (
-            float.IsNaN(acceleration.x) || float.IsNaN(acceleration.y) || float.IsNaN(acceleration.z) ||
-            float.IsInfinity(acceleration.x) || float.IsInfinity(acceleration.y) || float.IsInfinity(acceleration.z)
+            float.IsNaN(netAcceleration.x) || float.IsNaN(netAcceleration.y) || float.IsNaN(netAcceleration.z) ||
+            float.IsInfinity(netAcceleration.x) || float.IsInfinity(netAcceleration.y) || float.IsInfinity(netAcceleration.z)
         ) {
             lastVelocity = Velocity;
             return;
         }
 
+        // Transform to local space - this is the G-force the aircraft experiences
+        var localAcceleration = invRotation * netAcceleration;
+        
         // Light smoothing and clamping to avoid visual spikes during abrupt contacts
-        var localA = invRotation * acceleration;
         const float maxAbs = 200f; // m/s^2 (~20g)
-        localA.x = Mathf.Clamp(localA.x, -maxAbs, maxAbs);
-        localA.y = Mathf.Clamp(localA.y, -maxAbs, maxAbs);
-        localA.z = Mathf.Clamp(localA.z, -maxAbs, maxAbs);
+        localAcceleration.x = Mathf.Clamp(localAcceleration.x, -maxAbs, maxAbs);
+        localAcceleration.y = Mathf.Clamp(localAcceleration.y, -maxAbs, maxAbs);
+        localAcceleration.z = Mathf.Clamp(localAcceleration.z, -maxAbs, maxAbs);
 
         // Exponential smoothing
-        LocalGForce = Vector3.Lerp(LocalGForce, localA, 0.25f);
+        LocalGForce = Vector3.Lerp(LocalGForce, localAcceleration, 0.25f);
         lastVelocity = Velocity;
     }
 
@@ -355,10 +367,14 @@ public class Plane : MonoBehaviour {
         Vector3 localVel = LocalVelocity;
         Vector3 gForceLocal = LocalGForce;
         
+        // Calculate actual pitch angle for comparison with AOA
+        float pitchAngle = eulerAngles.x;
+        if (pitchAngle > 180f) pitchAngle -= 360f; // Convert to -180 to +180 range
+        
         Debug.Log($"Speed: {velocity.magnitude:F1} m/s | Vel(X:{velocity.x:F1}, Y:{velocity.y:F1}, Z:{velocity.z:F1}) | " +
-                 $"LocalVel(X:{localVel.x:F1}, Y:{localVel.y:F1}, Z:{localVel.z:F1}) | AOA: {AngleOfAttack*Mathf.Rad2Deg:F1}° | " +
+                 $"LocalVel(X:{localVel.x:F1}, Y:{localVel.y:F1}, Z:{localVel.z:F1}) | AOA: {AngleOfAttack*Mathf.Rad2Deg:F1}° | Pitch: {pitchAngle:F1}° | " +
                  $"G-Force: {gForceLocal.magnitude/9.81f:F1}g({gForceLocal.x/9.81f:F1}, {gForceLocal.y/9.81f:F1}, {gForceLocal.z/9.81f:F1}) | " +
-                 $"Gravity: {gravity.magnitude:F1} m/s² | Angles X:{eulerAngles.x:F1}° Y:{eulerAngles.y:F1}° Z:{eulerAngles.z:F1}°");
+                 $"Gravity: {gravity.magnitude:F1} m/s²");
 
         //handle user input
         UpdateThrottle(dt);
