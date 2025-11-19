@@ -88,7 +88,7 @@ public class Plane : MonoBehaviour {
         animation = GetComponent<PlaneAnimation>();
         Rigidbody = GetComponent<Rigidbody>();
 
-        if (landingGear != null && landingGear.Count > 0) {
+        if (landingGear != null && landingGear.Count > 0 && landingGear[0] != null) {
             landingGearDefaultMaterial = landingGear[0].sharedMaterial;
         }
 
@@ -336,7 +336,7 @@ public class Plane : MonoBehaviour {
         for (int i = 0; i < collision.contactCount; i++) {
             var contact = collision.contacts[i];
 
-            if (landingGear.Contains(contact.thisCollider)) {
+            if (landingGear != null && landingGear.Contains(contact.thisCollider)) {
                 continue;
             }
 
