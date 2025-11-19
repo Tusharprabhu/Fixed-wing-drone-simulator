@@ -69,6 +69,10 @@ public class Plane : MonoBehaviour {
     Vector3 controlInput;
 
     Vector3 lastVelocity;
+    
+    // Display-only calculation variables (don't affect flight physics)
+    Vector3 lastVelocityDisplay;
+    Vector3 lastGForceDisplay;
     PhysicsMaterial landingGearDefaultMaterial;
 
     public bool Dead { get; private set; }
@@ -137,7 +141,7 @@ public class Plane : MonoBehaviour {
         }
 
         float forwardSpeed = LocalVelocity.z;
-        float verticalSpeed = LocalVelocity.y;  // Positive Y is up in local space
+        float verticalSpeed = -LocalVelocity.y;  // Note: Y is inverted for proper AOA
         float sideSpeed = LocalVelocity.x;
         
         // Prevent division by zero and extreme values
@@ -147,14 +151,9 @@ public class Plane : MonoBehaviour {
             return;
         }
         
-        // AOA is the angle between aircraft's forward axis and actual velocity vector
-        // Positive AOA means nose up relative to flight path
-        AngleOfAttack = Mathf.Atan2(verticalSpeed, forwardSpeed); // No absolute value on forward speed
-        AngleOfAttackYaw = Mathf.Atan2(sideSpeed, Mathf.Abs(forwardSpeed));
-        
-        // Clamp to reasonable values
-        AngleOfAttack = Mathf.Clamp(AngleOfAttack, -1.57f, 1.57f); // ±90°
-        AngleOfAttackYaw = Mathf.Clamp(AngleOfAttackYaw, -1.57f, 1.57f);
+        // Calculate AOA with proper clamping to prevent extreme values
+        AngleOfAttack = Mathf.Clamp(Mathf.Atan2(verticalSpeed, Mathf.Abs(forwardSpeed)), -1.57f, 1.57f); // ±90°
+        AngleOfAttackYaw = Mathf.Clamp(Mathf.Atan2(sideSpeed, Mathf.Abs(forwardSpeed)), -1.57f, 1.57f);
     }
 
     // Estimate local G-force by differentiating velocity, applying guards and smoothing
@@ -167,35 +166,70 @@ public class Plane : MonoBehaviour {
         }
 
         var invRotation = Quaternion.Inverse(Rigidbody.rotation);
-        
-        // Calculate acceleration in world space
-        var worldAcceleration = (Velocity - lastVelocity) / dt;
-        
-        // Subtract gravity to get the acceleration due to forces (not gravity)
-        var netAcceleration = worldAcceleration - Physics.gravity;
-        
+        var acceleration = (Velocity - lastVelocity) / dt;
+
         // Guard against NaN/Infinity due to sudden engine state changes
         if (
-            float.IsNaN(netAcceleration.x) || float.IsNaN(netAcceleration.y) || float.IsNaN(netAcceleration.z) ||
-            float.IsInfinity(netAcceleration.x) || float.IsInfinity(netAcceleration.y) || float.IsInfinity(netAcceleration.z)
+            float.IsNaN(acceleration.x) || float.IsNaN(acceleration.y) || float.IsNaN(acceleration.z) ||
+            float.IsInfinity(acceleration.x) || float.IsInfinity(acceleration.y) || float.IsInfinity(acceleration.z)
         ) {
             lastVelocity = Velocity;
             return;
         }
 
-        // Transform to local space - this is the G-force the aircraft experiences
-        var localAcceleration = invRotation * netAcceleration;
-        
         // Light smoothing and clamping to avoid visual spikes during abrupt contacts
+        var localA = invRotation * acceleration;
         const float maxAbs = 200f; // m/s^2 (~20g)
-        localAcceleration.x = Mathf.Clamp(localAcceleration.x, -maxAbs, maxAbs);
-        localAcceleration.y = Mathf.Clamp(localAcceleration.y, -maxAbs, maxAbs);
-        localAcceleration.z = Mathf.Clamp(localAcceleration.z, -maxAbs, maxAbs);
+        localA.x = Mathf.Clamp(localA.x, -maxAbs, maxAbs);
+        localA.y = Mathf.Clamp(localA.y, -maxAbs, maxAbs);
+        localA.z = Mathf.Clamp(localA.z, -maxAbs, maxAbs);
 
         // Exponential smoothing
-        LocalGForce = Vector3.Lerp(LocalGForce, localAcceleration, 0.25f);
+        LocalGForce = Vector3.Lerp(LocalGForce, localA, 0.25f);
         lastVelocity = Velocity;
     }
+
+    // Display-only G-force calculation for HUD (doesn't affect flight physics)
+    Vector3 CalculateGForceForDisplay(float dt) {
+        // Simple acceleration calculation for display
+        Vector3 currentVelocity = Rigidbody.linearVelocity;
+        
+        // Initialize or handle bad data
+        if (lastVelocityDisplay == Vector3.zero || dt <= 0f) {
+            lastVelocityDisplay = currentVelocity;
+            return Vector3.zero;
+        }
+        
+        // Calculate world acceleration
+        Vector3 worldAcceleration = (currentVelocity - lastVelocityDisplay) / dt;
+        
+        // Subtract gravity to get net acceleration due to aircraft forces
+        Vector3 netAcceleration = worldAcceleration - Physics.gravity;
+        
+        // Transform to local aircraft space for proper G-force display
+        Vector3 localGForce = Quaternion.Inverse(transform.rotation) * netAcceleration;
+        
+        // Smooth the result for display
+        localGForce = Vector3.Lerp(lastGForceDisplay, localGForce, 0.2f);
+        
+        // Update for next frame
+        lastVelocityDisplay = currentVelocity;
+        lastGForceDisplay = localGForce;
+        
+        return localGForce;
+    }
+    
+    // AOA is just the pitch angle - simple and direct
+    float GetAOAForDisplay() {
+        Vector3 eulerAngles = transform.eulerAngles;
+        float pitchAngle = eulerAngles.x > 180f ? eulerAngles.x - 360f : eulerAngles.x;
+        // Invert sign for display: user wants positive to become negative and vice-versa.
+        // This affects HUD/console display only and does not modify physics calculations.
+        return -pitchAngle;
+    }
+    
+    // Public property for HUD
+    public float DisplayAOA => GetAOAForDisplay();
 
     // Update cached kinematic state: world velocity, local velocity, local angular velocity and AOA
     void CalculateState(float dt) {
@@ -360,36 +394,25 @@ public class Plane : MonoBehaviour {
         CalculateState(dt);
         CalculateGForce(dt);
         
-        // Enhanced debug logging with gravity, G-force, and velocity components
+        // Clean calculated values output
         Vector3 eulerAngles = transform.eulerAngles;
-        Vector3 gravity = Physics.gravity;
-        Vector3 velocity = Rigidbody.linearVelocity;
-        Vector3 localVel = LocalVelocity;
-        Vector3 gForceLocal = LocalGForce;
+        Vector3 worldVelocity = Rigidbody.linearVelocity;
+        Vector3 gForceDisplay = CalculateGForceForDisplay(dt);
+        float aoaDisplay = GetAOAForDisplay();
         
-        // Calculate actual pitch angle for comparison with AOA
-        float pitchAngle = eulerAngles.x;
-        if (pitchAngle > 180f) pitchAngle -= 360f; // Convert to -180 to +180 range
+        // Convert Euler angles to -180 to +180 range
+        float pitchAngle = eulerAngles.x > 180f ? eulerAngles.x - 360f : eulerAngles.x;
+        float yawAngle = eulerAngles.y > 180f ? eulerAngles.y - 360f : eulerAngles.y;
+        float rollAngle = eulerAngles.z > 180f ? eulerAngles.z - 360f : eulerAngles.z;
         
-        Debug.Log($"Speed: {velocity.magnitude:F1} m/s | Vel(X:{velocity.x:F1}, Y:{velocity.y:F1}, Z:{velocity.z:F1}) | " +
-                 $"LocalVel(X:{localVel.x:F1}, Y:{localVel.y:F1}, Z:{localVel.z:F1}) | AOA: {AngleOfAttack*Mathf.Rad2Deg:F1}° | Pitch: {pitchAngle:F1}° | " +
-                 $"G-Force: {gForceLocal.magnitude/9.81f:F1}g({gForceLocal.x/9.81f:F1}, {gForceLocal.y/9.81f:F1}, {gForceLocal.z/9.81f:F1}) | " +
-                 $"Gravity: {gravity.magnitude:F1} m/s²");
+        Debug.Log($"Speed: {worldVelocity.magnitude:F1}m/s | Pitch: {pitchAngle:F1}° | Yaw: {yawAngle:F1}° | Roll: {rollAngle:F1}° | " +
+                 $"AOA: {aoaDisplay:F1}° | GForce: {gForceDisplay.magnitude/9.81f:F2}g ({gForceDisplay.x/9.81f:F2}, {gForceDisplay.y/9.81f:F2}, {gForceDisplay.z/9.81f:F2})g");
 
         //handle user input
         UpdateThrottle(dt);
 
         if (!Dead) {
             //apply updates
-            UpdateThrust();
-            UpdateLift();
-            UpdateSteering(dt);
-            UpdateDrag();
-            UpdateAngularDrag();
-            
-            // Debug force information
-            float thrustForce = Mathf.Clamp(Throttle * maxThrust, 0, 100f);
-            Debug.Log($"Forces - Thrust: {thrustForce:F1}N | Throttle: {Throttle:F2} | ThrottleInput: {throttleInput:F2}");
             UpdateThrust();
             UpdateLift();
             UpdateSteering(dt);
