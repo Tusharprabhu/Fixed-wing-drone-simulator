@@ -90,6 +90,9 @@ public class Plane : MonoBehaviour {
 
         if (landingGear != null && landingGear.Count > 0 && landingGear[0] != null) {
             landingGearDefaultMaterial = landingGear[0].sharedMaterial;
+            Debug.Log($"Landing gear configured: {landingGear.Count} colliders");
+        } else {
+            Debug.Log("No landing gear assigned - plane will crash on any ground contact");
         }
 
         Rigidbody.linearVelocity = Rigidbody.rotation * new Vector3(0, 0, initialSpeed);
