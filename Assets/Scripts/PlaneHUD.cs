@@ -31,7 +31,8 @@ public class PlaneHUD : MonoBehaviour {
         float altitude = plane.Rigidbody.position.y; // meters
         // Use display-only AOA (pitch) which is already in degrees and has been inverted as requested
         float aoa = plane.DisplayAOA;
-        float verticalAccel = plane.LocalGForce.y; // m/s^2
+        // G-Force using push-over formula (can show negative values)
+        float gLoad = plane.DisplayLoadFactor;
         float throttle = plane.Throttle * 100f;
         float heading = plane.transform.eulerAngles.y;
 
@@ -56,8 +57,10 @@ public class PlaneHUD : MonoBehaviour {
         GUI.Label(new Rect(x, y, 230, lineHeight), $"AOA: {aoa:0.1}°", style);
         y += lineHeight;
         
-        GUI.Label(new Rect(x, y, 230, lineHeight), $"Vertical Accel: {verticalAccel:0.1} m/s²", style);
+        GUI.Label(new Rect(x, y, 230, lineHeight), $"G: {gLoad:0.00} g", style);
         y += lineHeight;
+        
+        // (G-force removed)
         
         GUI.Label(new Rect(x, y, 230, lineHeight), $"Throttle: {throttle:0}%", style);
         y += lineHeight;

@@ -231,7 +231,50 @@ public class Plane : MonoBehaviour {
     // Public property for HUD
     public float DisplayAOA => GetAOAForDisplay();
 
-    // Update cached kinematic state: world velocity, local velocity, local angular velocity and AOA
+    // Display Load Factor (G-load) using push-over formula for negative Gs
+    // Formula: G = 1 - 4(v^2)/(r * 9.81)
+    // This allows negative values during push-over maneuvers (diving over hills)
+    public float DisplayLoadFactor {
+        get {
+            return CalculateLoadFactorForDisplay();
+        }
+    }
+
+    float CalculateLoadFactorForDisplay() {
+        // Get current velocity magnitude (m/s)
+        float v = Velocity.magnitude;
+        
+        // Get pitch angular velocity (rad/s) - use raw value to detect direction
+        float omega = LocalAngularVelocity.x;
+        
+        // Use smaller threshold for more sensitive detection
+        if (Mathf.Abs(omega) < 1e-4f) {
+            return 1.0f; // Level flight, normal gravity
+        }
+        
+        // Calculate radius: r = v / |omega|
+        float r = v / Mathf.Abs(omega);
+        
+        // Clamp radius to reasonable flight values (tighter turns = stronger G forces)
+        r = Mathf.Clamp(r, 5f, 500f); // 5m minimum radius for tight maneuvers
+        
+        // Push-over formula: G = 1 - (v^2)/(r * 9.81)
+        const float g = 9.81f;
+        float centripetalTerm = (4*v * v) / (r * g);
+        
+        // Apply direction: REVERSED - positive omega (nose up) = negative G, negative omega (nose down) = positive G
+        float gLoad;
+        if (omega > 0) {
+            // Nose up: negative G (1 - centripetal) - REVERSED
+            gLoad = 1f - centripetalTerm;
+        } else {
+            // Nose down: positive G (1 + centripetal) - REVERSED
+            gLoad = 1f + centripetalTerm;
+        }
+        
+        // Clamp to realistic values
+        return Mathf.Clamp(gLoad, -10f, 15f);
+    }    // Update cached kinematic state: world velocity, local velocity, local angular velocity and AOA
     void CalculateState(float dt) {
         var invRotation = Quaternion.Inverse(Rigidbody.rotation);
         Velocity = Rigidbody.linearVelocity;
@@ -405,10 +448,9 @@ public class Plane : MonoBehaviour {
         float yawAngle = eulerAngles.y > 180f ? eulerAngles.y - 360f : eulerAngles.y;
         float rollAngle = eulerAngles.z > 180f ? eulerAngles.z - 360f : eulerAngles.z;
         
+        float displayG = DisplayLoadFactor;
         Debug.Log($"Speed: {worldVelocity.magnitude:F1}m/s | Pitch: {pitchAngle:F1}° | Yaw: {yawAngle:F1}° | Roll: {rollAngle:F1}° | " +
-                 $"AOA: {aoaDisplay:F1}° | GForce: {gForceDisplay.magnitude/9.81f:F2}g ({gForceDisplay.x/9.81f:F2}, {gForceDisplay.y/9.81f:F2}, {gForceDisplay.z/9.81f:F2})g");
-
-        //handle user input
+             $"AOA: {aoaDisplay:F1}° | G: {displayG:F2}g | GForce: {gForceDisplay.magnitude/9.81f:F2}g ({gForceDisplay.x/9.81f:F2}, {gForceDisplay.y/9.81f:F2}, {gForceDisplay.z/9.81f:F2})g");        //handle user input
         UpdateThrottle(dt);
 
         if (!Dead) {

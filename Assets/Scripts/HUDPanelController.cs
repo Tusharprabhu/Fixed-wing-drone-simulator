@@ -125,10 +125,11 @@ public class HUDPanelController : MonoBehaviour
             aoaText.text = $"{aoa:0.00}°";
         }
 
-        // Clear GForce until user supplies a replacement calculation.
+        // Display push-over G-load (can be negative during diving maneuvers)
         if (gforceText != null)
         {
-            gforceText.text = string.Empty;
+            float gLoad = plane.DisplayLoadFactor;
+            gforceText.text = $"{gLoad:0.00} G";
         }
 
         if (throttleBar != null)
