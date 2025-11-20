@@ -11,7 +11,7 @@ public class HUDPanelController : MonoBehaviour
     Text aoaText;
     Text gforceText;
     Bar throttleBar;
-    Text compassText;
+    // Compass is removed: no compassText field required
 
     // HUD uses SI units: meters and meters/second
 
@@ -60,24 +60,20 @@ public class HUDPanelController : MonoBehaviour
             throttleBar = throttle.GetComponent<Bar>();
         }
 
-        Transform compass = transform.Find("Compass");
-        if (compass != null)
-        {
-            compassText = compass.GetComponentInChildren<Text>();
-        }
+        // Compass removed from HUD - no lookup here
 
         // Check if all components were found
         // GForce element is optional: removed from HUD calculation by default.
         bool allFound = airspeedText != null && altitudeText != null && 
-                aoaText != null && throttleBar != null && compassText != null;
+            aoaText != null && throttleBar != null;
         
         if (allFound)
         {
-            Debug.Log("✅ HUD Panel Controller: All UI elements found and connected");
+            Debug.Log("HUD Panel Controller: All UI elements found and connected");
         }
         else
         {
-            Debug.LogWarning($"⚠️ HUD missing elements: Speed={airspeedText != null}, Alt={altitudeText != null}, AOA={aoaText != null}, Throttle={throttleBar != null}, Compass={compassText != null}");
+            Debug.LogWarning($"HUD missing elements: Speed={airspeedText != null}, Alt={altitudeText != null}, AOA={aoaText != null}, Throttle={throttleBar != null}");
         }
     }
 
@@ -137,9 +133,6 @@ public class HUDPanelController : MonoBehaviour
             throttleBar.SetValue(plane.Throttle);
         }
 
-        if (compassText != null)
-        {
-            compassText.text = $"{heading:0}°";
-        }
+        // Compass removed: no HUD update
     }
 }
