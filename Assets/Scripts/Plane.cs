@@ -260,15 +260,16 @@ public class Plane : MonoBehaviour {
         
         // Push-over formula: G = 1 - (v^2)/(r * 9.81)
         const float g = 9.81f;
+        // Use the exact physics centripetal term (no arbitrary multiplier)
         float centripetalTerm = (4*v * v) / (r * g);
         
-        // Apply direction: REVERSED - positive omega (nose up) = negative G, negative omega (nose down) = positive G
+        // Apply direction: positive omega (nose down) = negative G, negative omega (nose up) = positive G (push-over)
         float gLoad;
         if (omega > 0) {
-            // Nose up: negative G (1 - centripetal) - REVERSED
+            // Nose up: push-over formula (1 - centripetal)
             gLoad = 1f - centripetalTerm;
         } else {
-            // Nose down: positive G (1 + centripetal) - REVERSED
+            // Nose down: positive G (1 + centripetal)
             gLoad = 1f + centripetalTerm;
         }
         
