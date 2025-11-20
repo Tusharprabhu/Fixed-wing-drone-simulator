@@ -48,6 +48,14 @@ public class Plane : MonoBehaviour {
     AnimationCurve dragBottom;
     [SerializeField]
     Vector3 angularDrag;
+    
+    [Header("Aerodynamic Stability")]
+    [SerializeField]
+    float sideslipStabilityCoefficient = 2.0f;  // Weather vane effect strength
+    [SerializeField]
+    float adverseYawCoefficient = 0.5f;         // Aileron-induced yaw strength
+    [SerializeField]
+    float stabilityDamping = 1.0f;              // Overall stability damping
 
     [Header("Misc")]
     [SerializeField]
@@ -86,6 +94,7 @@ public class Plane : MonoBehaviour {
     public Vector3 LocalAngularVelocity { get; private set; }
     public float AngleOfAttack { get; private set; }
     public float AngleOfAttackYaw { get; private set; }
+    public float SideslipAngle { get; private set; }  // Beta - sideways sliding angle
 
     // Initialize references, store landing gear default material and set initial linear velocity
     void Start() {
@@ -148,12 +157,16 @@ public class Plane : MonoBehaviour {
         if (Mathf.Abs(forwardSpeed) < 0.01f) {
             AngleOfAttack = 0;
             AngleOfAttackYaw = 0;
+            SideslipAngle = 0;
             return;
         }
         
         // Calculate AOA with proper clamping to prevent extreme values
         AngleOfAttack = Mathf.Clamp(Mathf.Atan2(verticalSpeed, Mathf.Abs(forwardSpeed)), -1.57f, 1.57f); // ±90°
         AngleOfAttackYaw = Mathf.Clamp(Mathf.Atan2(sideSpeed, Mathf.Abs(forwardSpeed)), -1.57f, 1.57f);
+        
+        // Calculate sideslip angle (Beta) - how much the plane is sliding sideways
+        SideslipAngle = Mathf.Atan2(LocalVelocity.x, Mathf.Abs(LocalVelocity.z));
     }
 
     // Estimate local G-force by differentiating velocity, applying guards and smoothing
@@ -407,12 +420,14 @@ public class Plane : MonoBehaviour {
         var targetAV = Vector3.Scale(controlInput, turnSpeed * steeringPower);
         var av = LocalAngularVelocity * Mathf.Rad2Deg;
 
-        var correction = new Vector3(
-            CalculateSteering(dt, av.x, targetAV.x, turnAcceleration.x * steeringPower),
-            CalculateSteering(dt, av.y, targetAV.y, turnAcceleration.y * steeringPower),
-            CalculateSteering(dt, av.z, targetAV.z, turnAcceleration.z * steeringPower)
-        );
+        // Calculate basic steering corrections for pitch and roll
+        var pitchCorrection = CalculateSteering(dt, av.x, targetAV.x, turnAcceleration.x * steeringPower);
+        var rollCorrection = CalculateSteering(dt, av.z, targetAV.z, turnAcceleration.z * steeringPower);
+        
+        // AERODYNAMIC YAW FUSION - Combine three yaw torque components
+        float yawCorrection = CalculateAerodynamicYawTorque(dt, av.y, targetAV.y, steeringPower, rollCorrection);
 
+        var correction = new Vector3(pitchCorrection, yawCorrection, rollCorrection);
         Rigidbody.AddRelativeTorque(correction * Mathf.Deg2Rad, ForceMode.VelocityChange);    //ignore rigidbody mass
 
         var correctionInput = new Vector3(
@@ -428,6 +443,28 @@ public class Plane : MonoBehaviour {
             Mathf.Clamp(effectiveInput.y, -1, 1),
             Mathf.Clamp(effectiveInput.z, -1, 1)
         );
+    }
+    
+    // Calculate aerodynamically-correct yaw torque combining pilot input + adverse yaw + sideslip stability
+    float CalculateAerodynamicYawTorque(float dt, float currentYawVelocity, float targetYawVelocity, float steeringPower, float rollCorrection) {
+        // 1. PILOT RUDDER INPUT - Basic yaw control
+        float pilotYawTorque = CalculateSteering(dt, currentYawVelocity, targetYawVelocity, turnAcceleration.y * steeringPower);
+        
+        // 2. ADVERSE YAW - Ailerons create opposite yaw due to differential drag
+        // When rolling right (positive roll), left wing goes down (more lift+drag), nose yaws left (negative)
+        float adverseYawTorque = -rollCorrection * adverseYawCoefficient;
+        
+        // 3. SIDESLIP STABILITY - Weather vane effect fights sideways sliding
+        // If sliding right (positive beta), apply left yaw torque (negative) to realign nose
+        float sideslipCorrectionTorque = -SideslipAngle * sideslipStabilityCoefficient * steeringPower;
+        
+        // 4. TOTAL FUSED YAW TORQUE
+        float totalYawTorque = pilotYawTorque + adverseYawTorque + sideslipCorrectionTorque;
+        
+        // Apply stability damping to prevent oscillations
+        totalYawTorque *= stabilityDamping;
+        
+        return totalYawTorque;
     }
 
     // Main physics update: compute state, apply input (thrust, lift, steering, drag, angular drag), and handle dead alignment

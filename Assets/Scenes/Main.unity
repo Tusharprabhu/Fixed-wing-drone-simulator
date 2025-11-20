@@ -1885,17 +1885,17 @@ PrefabInstance:
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
       propertyPath: turnSpeed.x
-      value: 1080
+      value: 1440
       objectReference: {fileID: 0}
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
       propertyPath: turnSpeed.y
-      value: 1080
+      value: 1440
       objectReference: {fileID: 0}
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
       propertyPath: turnSpeed.z
-      value: 1080
+      value: 1440
       objectReference: {fileID: 0}
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
@@ -1905,17 +1905,17 @@ PrefabInstance:
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
       propertyPath: turnAcceleration.x
-      value: 1080
+      value: 2000
       objectReference: {fileID: 0}
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
       propertyPath: turnAcceleration.y
-      value: 1080
+      value: 2000
       objectReference: {fileID: 0}
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
       propertyPath: turnAcceleration.z
-      value: 1080
+      value: 2000
       objectReference: {fileID: 0}
     - target: {fileID: 1030071069971577036, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}
@@ -2072,6 +2072,11 @@ PrefabInstance:
         type: 3}
       propertyPath: 'flaps.Array.data[1]'
       value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: 3168297468136084144, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
+        type: 3}
+      propertyPath: maxRudderDeflection
+      value: 20
       objectReference: {fileID: 0}
     - target: {fileID: 3168297468136084144, guid: 868b13a7be7adb148b89b9bcf56bb6a6,
         type: 3}

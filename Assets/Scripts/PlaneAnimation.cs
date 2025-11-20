@@ -92,7 +92,7 @@ public class PlaneAnimation : MonoBehaviour {
         if (rudders != null) {
             foreach (var t in rudders) {
                 if (t != null) {
-                    t.localRotation = CalculatePose(t, Quaternion.Euler(0, -deflection.y * maxRudderDeflection, 0));
+                    t.localRotation = CalculatePose(t, Quaternion.Euler(0, 0, -deflection.y * maxRudderDeflection));
                 }
             }
         }
