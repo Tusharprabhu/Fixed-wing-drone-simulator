@@ -45,13 +45,6 @@ public class PlayerController : MonoBehaviour {
         controlInput = new Vector3(pitchInput, yawFromRoll, rollInput);
     }
 
-    public void OnYawInput(InputAction.CallbackContext context) {
-        if (plane == null) return;
-
-        var input = context.ReadValue<float>();
-        controlInput = new Vector3(controlInput.x, input, controlInput.z);
-    }
-
     public void OnCameraInput(InputAction.CallbackContext context) {
         if (plane == null) return;
 
