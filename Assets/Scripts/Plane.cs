@@ -120,6 +120,14 @@ public class Plane : MonoBehaviour {
         controlInput = Vector3.ClampMagnitude(input, 1);
     }
 
+    // Reset controls for agent training
+    public void ResetControls() {
+        throttleInput = 0;
+        Throttle = 0;
+        controlInput = Vector3.zero;
+        Dead = false;
+    }
+
     // Trigger death: stop engine, mark dead, pause damage effect and enable death effect
     void Die() {
         throttleInput = 0;
