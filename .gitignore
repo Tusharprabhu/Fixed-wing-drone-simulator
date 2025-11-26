@@ -68,3 +68,25 @@ Assets/Scenes/Main.meta
 UserSettings/
 .vsconfig
 ProjectSettings/boot.config
+
+# Python virtualenv
+mlagents_venv/
+venv/
+.env/
+.Python
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Results and models
+results/
+models/
+
+# VS Code
+.vscode/
+
+# OS files
+Thumbs.db
+.DS_Store

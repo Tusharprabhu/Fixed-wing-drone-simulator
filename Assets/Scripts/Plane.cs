@@ -128,6 +128,44 @@ public class Plane : MonoBehaviour {
         Dead = false;
     }
 
+    // Full reset to a given position/rotation and initial forward speed
+    public void ResetTo(Vector3 position, Quaternion rotation, float forwardSpeed) {
+        // Restore kinematic/physics behaviour
+        Rigidbody.isKinematic = false;
+        Rigidbody.position = position;
+        Rigidbody.rotation = rotation;
+        Rigidbody.linearVelocity = rotation * new Vector3(0, 0, forwardSpeed);
+        Rigidbody.angularVelocity = Vector3.zero;
+
+        // Reset internal state and control inputs
+        throttleInput = 0f;
+        Throttle = 0f;
+        controlInput = Vector3.zero;
+        Dead = false;
+
+        // Clear visual/damage/death effects
+        if (damageEffect != null) {
+            var ps = damageEffect.GetComponent<ParticleSystem>();
+            if (ps != null) {
+                ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            }
+        }
+        if (deathEffect != null) {
+            deathEffect.SetActive(false);
+        }
+
+        // Re-enable mesh graphics that are disabled after crash
+        if (graphics != null) {
+            foreach (var go in graphics) {
+                if (go != null) go.SetActive(true);
+            }
+        }
+
+        // Reset last velocity and local values
+        lastVelocity = Vector3.zero;
+        LocalGForce = Vector3.zero;
+    }
+
     // Trigger death: stop engine, mark dead, pause damage effect and enable death effect
     void Die() {
         throttleInput = 0;

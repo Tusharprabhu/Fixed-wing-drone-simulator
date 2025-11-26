@@ -1,4 +1,8 @@
 using UnityEngine;
+// Support both the Legacy Input and the new Input System for heuristic controls
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 using Unity.MLAgents;
 using Unity.MLAgents.Sensors;
 using Unity.MLAgents.Actuators;
@@ -11,9 +15,23 @@ public class DroneAgent : Agent
     [Header("Training Stats")]
     [SerializeField] private int waypointsCollected = 0;
     
+    [Header("Start Position")]
+    [SerializeField] private Vector3 startPosition = new Vector3(0f, 10f, 0f); // Default to air for safety
+    [SerializeField] private float initialSpeed = 20f;
+    [SerializeField] private bool startOnRunway = false;
+    
     [Header("Waypoint Tracking")]
     private WaypointReward targetWaypoint;
     private WaypointReward[] allWaypoints;
+
+    [Header("Stuck Detection")]
+    [SerializeField] private float stuckSpeedThreshold = 2f; // below this speed is considered stuck
+    [SerializeField] private float stuckResetTime = 5f; // seconds before auto-reset
+    private float stuckTimer = 0f;
+
+    [Header("Interaction Timeout")]
+    [SerializeField] private float interactionTimeout = 30f; // seconds without reward/penalty before restart
+    private float timeSinceLastInteraction = 0f;
 
     public override void Initialize()
     {
@@ -24,25 +42,68 @@ public class DroneAgent : Agent
 
     public override void OnEpisodeBegin()
     {
-        // Reset the plane to initial position
-        transform.position = new Vector3(0, 10, 0);
-        transform.rotation = Quaternion.identity;
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-        plane.ResetControls();
+        // Use Plane.ResetTo for a full reset including effects
+        plane.ResetTo(startPosition, Quaternion.identity, initialSpeed);
+        // Ensure rigidbody physics are active again and clear any Kinematic state
+        if (rb != null) rb.isKinematic = false;
         
         // Reset waypoint counter
         waypointsCollected = 0;
         
-        // Respawn all waypoints
+        // Find waypoints (no respawning - keep them in fixed positions)
         allWaypoints = FindObjectsByType<WaypointReward>(FindObjectsSortMode.None);
-        foreach (var waypoint in allWaypoints)
-        {
-            waypoint.Respawn();
-        }
         
         // Find nearest waypoint
         UpdateTargetWaypoint();
+        
+        // Reset stuck timer
+        stuckTimer = 0f;
+        
+        // Reset interaction timer
+        timeSinceLastInteraction = 0f;
+
+        Debug.Log("<color=blue>*** EPISODE STARTED ***</color> Drone reset to starting position");
+    }
+
+    void FixedUpdate()
+    {
+        if (rb == null) return;
+        // Avoid stuck detection while kinematic or dead
+        if (rb.isKinematic || plane == null) return;
+
+        // If plane reports dead (crashed), end the episode to ensure a proper reset
+        if (plane.Dead)
+        {
+            Debug.Log("<color=red>*** PLANE DEAD - ENDING EPISODE ***</color>");
+            EndEpisode();
+            return;
+        }
+
+        float speed = rb.linearVelocity.magnitude;
+        if (speed < stuckSpeedThreshold && transform.position.y < 20f)
+        {
+            stuckTimer += Time.fixedDeltaTime;
+            if (stuckTimer > stuckResetTime)
+            {
+                Debug.Log($"<color=orange>*** STUCK TOO LONG ({stuckTimer:F1}s) - RESTARTING EPISODE ***</color>");
+                stuckTimer = 0f;
+                EndEpisode();
+                return;
+            }
+        }
+        else
+        {
+            stuckTimer = 0f;
+        }
+        
+        // Check interaction timeout - restart if no reward/penalty for too long
+        timeSinceLastInteraction += Time.fixedDeltaTime;
+        if (timeSinceLastInteraction > interactionTimeout)
+        {
+            Debug.Log($"<color=yellow>*** NO INTERACTION FOR {interactionTimeout}s - RESTARTING EPISODE ***</color>");
+            AddReward(-5f); // Small penalty for timing out
+            EndEpisode();
+        }
     }
 
     public override void CollectObservations(VectorSensor sensor)
@@ -115,10 +176,21 @@ public class DroneAgent : Agent
             reward += 0.01f;
         }
 
-        // Penalty for crashing
+        // Penalty for crashing into terrain (-10)
         if (transform.position.y < 0)
         {
             reward -= 10f;
+            timeSinceLastInteraction = 0f; // Reset interaction timer
+            Debug.Log("<color=red>*** TERRAIN CRASH! ***</color> Drone hit ground (-10) - Episode restarting");
+            EndEpisode();
+        }
+        
+        // Also check for other crash conditions
+        if (rb.linearVelocity.magnitude < 5f && transform.position.y < 20f)
+        {
+            // Stalled too close to ground
+            reward -= 5f;
+            Debug.Log("<color=orange>*** STALL! ***</color> Drone stalled - Episode restarting");
             EndEpisode();
         }
 
@@ -136,21 +208,56 @@ public class DroneAgent : Agent
     {
         var discreteActionsOut = actionsOut.DiscreteActions;
         
-        // Pitch control: W/S or Up/Down arrows
-        if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
-            discreteActionsOut[0] = 0; // Pitch up
-        else if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
-            discreteActionsOut[0] = 2; // Pitch down
-        else
-            discreteActionsOut[0] = 1; // Neutral
-        
-        // Roll control: A/D or Left/Right arrows
-        if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
-            discreteActionsOut[1] = 0; // Roll left
-        else if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
-            discreteActionsOut[1] = 2; // Roll right
-        else
-            discreteActionsOut[1] = 1; // Neutral
+        // Heuristic support: Prefer Unity Input System if enabled, otherwise use legacy Input.
+        bool usedInput = false;
+#if ENABLE_INPUT_SYSTEM
+        try
+        {
+            if (Keyboard.current != null)
+            {
+                // Pitch control: W/S or Up/Down arrows
+                if (Keyboard.current.wKey.isPressed || Keyboard.current.upArrowKey.isPressed)
+                    discreteActionsOut[0] = 0; // Pitch up
+                else if (Keyboard.current.sKey.isPressed || Keyboard.current.downArrowKey.isPressed)
+                    discreteActionsOut[0] = 2; // Pitch down
+                else
+                    discreteActionsOut[0] = 1; // Neutral
+
+                // Roll control: A/D or Left/Right arrows
+                if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed)
+                    discreteActionsOut[1] = 0; // Roll left
+                else if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed)
+                    discreteActionsOut[1] = 2; // Roll right
+                else
+                    discreteActionsOut[1] = 1; // Neutral
+
+                usedInput = true;
+            }
+        }
+        catch
+        {
+            // If anything goes wrong with the input system, fallback to legacy Input below
+            usedInput = false;
+        }
+#endif
+
+        if (!usedInput)
+        {
+            // Legacy Input fallback (works if "Input Manager (Old)" or "Both" are enabled in Player Settings)
+            if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
+                discreteActionsOut[0] = 0; // Pitch up
+            else if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
+                discreteActionsOut[0] = 2; // Pitch down
+            else
+                discreteActionsOut[0] = 1; // Neutral
+
+            if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
+                discreteActionsOut[1] = 0; // Roll left
+            else if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
+                discreteActionsOut[1] = 2; // Roll right
+            else
+                discreteActionsOut[1] = 1; // Neutral
+        }
     }
 
     // Called by WaypointReward when collected
@@ -158,7 +265,8 @@ public class DroneAgent : Agent
     {
         waypointsCollected++;
         AddReward(rewardAmount);
-        Debug.Log($"Waypoint collected! Total: {waypointsCollected}, Reward: +{rewardAmount}");
+        timeSinceLastInteraction = 0f; // Reset interaction timer
+        Debug.Log($"<color=green>REWARD SPHERE TOUCHED</color> - Waypoints: {waypointsCollected} | Reward: +{rewardAmount}");
         
         // Find next waypoint
         UpdateTargetWaypoint();
@@ -188,10 +296,12 @@ public class DroneAgent : Agent
     public void HitBoundary(float penaltyAmount, bool endEpisode)
     {
         AddReward(penaltyAmount);
-        Debug.Log($"Boundary hit! Penalty: {penaltyAmount}");
+        timeSinceLastInteraction = 0f; // Reset interaction timer
+        Debug.Log($"<color=red>WALL TOUCHED</color> - Penalty: {penaltyAmount}");
         
         if (endEpisode)
         {
+            Debug.Log("<color=red>*** BOUNDARY VIOLATION ***</color> Episode restarting");
             EndEpisode();
         }
     }

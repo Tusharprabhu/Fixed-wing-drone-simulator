@@ -1,13 +1,13 @@
 using UnityEngine;
+#if UNITY_EDITOR
+using UnityEditor;
+using UnityEditorInternal;
+#endif
 
 public class WaypointReward : MonoBehaviour
 {
     [Header("Reward Settings")]
     [SerializeField] private float rewardAmount = 10f;
-    [SerializeField] private bool respawnAfterCollection = true;
-    [SerializeField] private float respawnDelay = 2f;
-    [SerializeField] private Vector3 respawnAreaMin = new Vector3(-100, 10, -100);
-    [SerializeField] private Vector3 respawnAreaMax = new Vector3(100, 50, 100);
 
     [Header("Visual Settings")]
     [SerializeField] private Color waypointColor = Color.green;
@@ -16,7 +16,6 @@ public class WaypointReward : MonoBehaviour
 
     private MeshRenderer meshRenderer;
     private Material waypointMaterial;
-    private bool isCollected = false;
 
     void Start()
     {
@@ -49,6 +48,28 @@ public class WaypointReward : MonoBehaviour
         meshRenderer.material = waypointMaterial;
     }
 
+#if UNITY_EDITOR
+    // In the Editor, ensure this GameObject is tagged as 'Reward' if the tag exists.
+    // Use delayCall to avoid "SendMessage cannot be called during OnValidate" error.
+    void OnValidate()
+    {
+        EditorApplication.delayCall += () =>
+        {
+            if (this == null || gameObject == null) return; // object may have been destroyed
+            var tags = InternalEditorUtility.tags;
+            if (System.Array.IndexOf(tags, "Reward") >= 0)
+            {
+                if (!gameObject.CompareTag("Reward"))
+                {
+                    Undo.RecordObject(gameObject, "Set Reward tag");
+                    gameObject.tag = "Reward";
+                    EditorUtility.SetDirty(gameObject);
+                }
+            }
+        };
+    }
+#endif
+
     Mesh CreateSphereMesh()
     {
         GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -59,45 +80,11 @@ public class WaypointReward : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        if (isCollected) return;
-
         DroneAgent agent = other.GetComponent<DroneAgent>();
         if (agent != null)
         {
-            // Award points to the agent
+            // Award points to the agent (sphere stays in place)
             agent.CollectWaypoint(rewardAmount);
-            isCollected = true;
-
-            if (respawnAfterCollection)
-            {
-                Invoke(nameof(RespawnWaypoint), respawnDelay);
-                // Hide the waypoint temporarily
-                meshRenderer.enabled = false;
-            }
-            else
-            {
-                gameObject.SetActive(false);
-            }
         }
-    }
-
-    void RespawnWaypoint()
-    {
-        // Respawn at random position
-        Vector3 newPosition = new Vector3(
-            Random.Range(respawnAreaMin.x, respawnAreaMax.x),
-            Random.Range(respawnAreaMin.y, respawnAreaMax.y),
-            Random.Range(respawnAreaMin.z, respawnAreaMax.z)
-        );
-
-        transform.position = newPosition;
-        meshRenderer.enabled = true;
-        isCollected = false;
-    }
-
-    // Manual respawn for training setup
-    public void Respawn()
-    {
-        RespawnWaypoint();
     }
 }
