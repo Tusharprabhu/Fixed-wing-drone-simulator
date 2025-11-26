@@ -1,0 +1,13 @@
+# Exclude Unity and local data
+Library/
+Temp/
+Obj/
+Build/
+Builds/
+.vs/
+.vscode/
+mlagents_venv/
+**/__pycache__/
+results/
+models/
+*.log
