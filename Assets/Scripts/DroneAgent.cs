@@ -22,7 +22,11 @@ public class DroneAgent : Agent
     
     [Header("Waypoint Tracking")]
     private WaypointReward targetWaypoint;
-    private WaypointReward[] allWaypoints;
+    private WaypointReward[] allWaypoints;  
+    
+    [Header("Training Area")]
+    [Tooltip("Parent transform containing this agent's waypoints/boundaries. If null, uses global search.")]
+    [SerializeField] private Transform trainingArea;
 
     [Header("Stuck Detection")]
     [SerializeField] private float stuckSpeedThreshold = 2f; // below this speed is considered stuck
@@ -37,7 +41,38 @@ public class DroneAgent : Agent
     {
         plane = GetComponent<Plane>();
         rb = GetComponent<Rigidbody>();
-        allWaypoints = FindObjectsByType<WaypointReward>(FindObjectsSortMode.None);
+        
+        // Auto-detect training area if not set (look for parent with "TrainingArea" in name)
+        if (trainingArea == null)
+        {
+            Transform parent = transform.parent;
+            while (parent != null)
+            {
+                if (parent.name.Contains("TrainingArea") || parent.name.Contains("Area"))
+                {
+                    trainingArea = parent;
+                    break;
+                }
+                parent = parent.parent;
+            }
+        }
+        
+        // Find waypoints within training area only (or global if no area set)
+        RefreshWaypoints();
+    }
+    
+    void RefreshWaypoints()
+    {
+        if (trainingArea != null)
+        {
+            // Get only waypoints within this training area
+            allWaypoints = trainingArea.GetComponentsInChildren<WaypointReward>();
+        }
+        else
+        {
+            // Fallback to global search
+            allWaypoints = FindObjectsByType<WaypointReward>(FindObjectsSortMode.None);
+        }
     }
 
     public override void OnEpisodeBegin()
@@ -50,8 +85,8 @@ public class DroneAgent : Agent
         // Reset waypoint counter
         waypointsCollected = 0;
         
-        // Find waypoints (no respawning - keep them in fixed positions)
-        allWaypoints = FindObjectsByType<WaypointReward>(FindObjectsSortMode.None);
+        // Refresh waypoints within training area
+        RefreshWaypoints();
         
         // Find nearest waypoint
         UpdateTargetWaypoint();
@@ -241,6 +276,7 @@ public class DroneAgent : Agent
         }
 #endif
 
+#if ENABLE_LEGACY_INPUT_MANAGER
         if (!usedInput)
         {
             // Legacy Input fallback (works if "Input Manager (Old)" or "Both" are enabled in Player Settings)
@@ -258,6 +294,7 @@ public class DroneAgent : Agent
             else
                 discreteActionsOut[1] = 1; // Neutral
         }
+#endif
     }
 
     // Called by WaypointReward when collected
