@@ -93,3 +93,7 @@ Thumbs.db
 
 builder_Data/
 builder.x86_64
+
+# Ignore Unity demo recordings
+Assets/RECORDING/
+*.demo
