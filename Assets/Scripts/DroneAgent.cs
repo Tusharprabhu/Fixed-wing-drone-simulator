@@ -6,6 +6,7 @@ using UnityEngine.InputSystem;
 using Unity.MLAgents;
 using Unity.MLAgents.Sensors;
 using Unity.MLAgents.Actuators;
+using System.Collections.Generic;
 
 public class DroneAgent : Agent
 {
@@ -22,7 +23,10 @@ public class DroneAgent : Agent
     
     [Header("Waypoint Tracking")]
     private WaypointReward targetWaypoint;
-    private WaypointReward[] allWaypoints;  
+    private WaypointReward[] allWaypoints;
+    private int totalWaypoints = 0;
+    private HashSet<WaypointReward> collectedWaypoints = new HashSet<WaypointReward>();
+    private float previousDistanceToWaypoint = float.MaxValue;  
     
     [Header("Training Area")]
     [Tooltip("Parent transform containing this agent's waypoints/boundaries. If null, uses global search.")]
@@ -59,6 +63,13 @@ public class DroneAgent : Agent
         
         // Find waypoints within training area only (or global if no area set)
         RefreshWaypoints();
+        
+        // If no totalWaypoints found, set a default (user must have 5 waypoints)
+        if (totalWaypoints == 0)
+        {
+            totalWaypoints = 5; // Hardcode as fallback
+            Debug.LogWarning($"<color=orange>No waypoints found automatically! Using default: {totalWaypoints}</color>");
+        }
     }
     
     void RefreshWaypoints()
@@ -73,6 +84,9 @@ public class DroneAgent : Agent
             // Fallback to global search
             allWaypoints = FindObjectsByType<WaypointReward>(FindObjectsSortMode.None);
         }
+        
+        totalWaypoints = allWaypoints != null ? allWaypoints.Length : 0;
+        Debug.Log($"<color=cyan>Found {totalWaypoints} waypoints for episode</color>");
     }
 
     public override void OnEpisodeBegin()
@@ -82,8 +96,9 @@ public class DroneAgent : Agent
         // Ensure rigidbody physics are active again and clear any Kinematic state
         if (rb != null) rb.isKinematic = false;
         
-        // Reset waypoint counter
+        // Reset waypoint counter and collected set
         waypointsCollected = 0;
+        collectedWaypoints.Clear();
         
         // Refresh waypoints within training area
         RefreshWaypoints();
@@ -96,6 +111,9 @@ public class DroneAgent : Agent
         
         // Reset interaction timer
         timeSinceLastInteraction = 0f;
+        
+        // Reset distance tracking
+        previousDistanceToWaypoint = float.MaxValue;
 
         Debug.Log("<color=blue>*** EPISODE STARTED ***</color> Drone reset to starting position");
     }
@@ -194,22 +212,62 @@ public class DroneAgent : Agent
         float reward = 0f;
 
         // Small time penalty to encourage efficiency
-        reward -= 0.001f;
+        reward -= 0.002f;
         
-        // Reward for moving toward waypoint
+        // Waypoint-based rewards
         if (targetWaypoint != null)
         {
             Vector3 dirToWaypoint = (targetWaypoint.transform.position - transform.position).normalized;
             Vector3 velocity = rb.linearVelocity.normalized;
             float alignment = Vector3.Dot(velocity, dirToWaypoint);
-            reward += alignment * 0.1f;
+            
+            // Stronger alignment reward
+            reward += alignment * 0.5f;
+            
+            // Distance-based progress reward
+            float currentDistance = Vector3.Distance(transform.position, targetWaypoint.transform.position);
+            if (previousDistanceToWaypoint != float.MaxValue)
+            {
+                float distanceProgress = previousDistanceToWaypoint - currentDistance;
+                reward += distanceProgress * 0.01f; // Reward for getting closer
+            }
+            previousDistanceToWaypoint = currentDistance;
+            
+            // Penalty for being too far from waypoint
+            if (currentDistance > 200f)
+            {
+                reward -= 0.05f;
+            }
         }
 
-        // Reward for staying airborne
-        if (transform.position.y > 5f)
+        // Speed rewards - encourage maintaining good flight speed
+        float speed = rb.linearVelocity.magnitude;
+        if (speed > 15f && speed < 50f)
         {
-            reward += 0.01f;
+            reward += 0.05f; // Good speed range
         }
+        else if (speed < 10f)
+        {
+            reward -= 0.1f; // Too slow, risk of stalling
+        }
+        else if (speed > 60f)
+        {
+            reward -= 0.05f; // Too fast, hard to control
+        }
+        
+        // Height rewards - stay in reasonable altitude
+        float height = transform.position.y;
+        if (height > 5f && height < 45f)
+        {
+            reward += 0.03f; // Good altitude within tunnel
+        }
+        else if (height > 45f)
+        {
+            reward -= 0.1f; // Too high, hitting ceiling
+        }
+        
+        // Clamp reward to reduce extreme spikes
+        reward = Mathf.Clamp(reward, -2f, 2f);
 
         // Penalty for crashing into terrain (-10)
         if (transform.position.y < 0)
@@ -298,12 +356,33 @@ public class DroneAgent : Agent
     }
 
     // Called by WaypointReward when collected
-    public void CollectWaypoint(float rewardAmount)
+    public void CollectWaypoint(WaypointReward waypoint, float rewardAmount)
     {
+        // Check if already collected this episode
+        if (collectedWaypoints.Contains(waypoint))
+        {
+            return; // Already collected, ignore
+        }
+        
+        // Mark as collected
+        collectedWaypoints.Add(waypoint);
         waypointsCollected++;
         AddReward(rewardAmount);
         timeSinceLastInteraction = 0f; // Reset interaction timer
-        Debug.Log($"<color=green>REWARD SPHERE TOUCHED</color> - Waypoints: {waypointsCollected} | Reward: +{rewardAmount}");
+        
+        // Display progress (use actual required waypoints for display)
+        int displayTotal = totalWaypoints > 0 ? totalWaypoints : 5;
+        Debug.Log($"<color=green>✓ WAYPOINT COLLECTED</color> - Progress: {waypointsCollected}/{displayTotal} | Reward: +{rewardAmount}");
+        
+        // Check if all waypoints collected (use 5 as minimum if totalWaypoints is wrong)
+        int requiredWaypoints = totalWaypoints > 0 ? totalWaypoints : 5;
+        if (waypointsCollected >= requiredWaypoints)
+        {
+            AddReward(20f); // Bonus for completing all waypoints!
+            Debug.Log($"<color=lime>★★★ ALL {waypointsCollected} WAYPOINTS COLLECTED ★★★</color> Completion Bonus: +20 | Episode restarting!");
+            EndEpisode();
+            return;
+        }
         
         // Find next waypoint
         UpdateTargetWaypoint();

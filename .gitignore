@@ -90,3 +90,6 @@ models/
 # OS files
 Thumbs.db
 .DS_Store
+
+builder_Data/
+builder.x86_64

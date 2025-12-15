@@ -1,4 +1,5 @@
 {
+    "version": 1,
     "name": "PlayerInput",
     "maps": [
         {
@@ -9,9 +10,10 @@
                     "name": "ToggleHelp",
                     "type": "Button",
                     "id": "a601469b-e3aa-422a-806a-4f7dcba55332",
-                    "expectedControlType": "Button",
+                    "expectedControlType": "",
                     "processors": "",
-                    "interactions": ""
+                    "interactions": "",
+                    "initialStateCheck": false
                 },
                 {
                     "name": "Throttle",
@@ -19,7 +21,8 @@
                     "id": "0d46f8f2-2f6f-4fe2-8623-427c869c3bde",
                     "expectedControlType": "Axis",
                     "processors": "",
-                    "interactions": ""
+                    "interactions": "",
+                    "initialStateCheck": true
                 },
                 {
                     "name": "RollPitch",
@@ -27,7 +30,8 @@
                     "id": "7173b259-7215-456e-ba7f-dba1aaad27e1",
                     "expectedControlType": "Vector2",
                     "processors": "",
-                    "interactions": ""
+                    "interactions": "",
+                    "initialStateCheck": true
                 },
                 {
                     "name": "Yaw",
@@ -35,7 +39,8 @@
                     "id": "56c160cd-3545-4284-abef-8d6eb62ab74c",
                     "expectedControlType": "Axis",
                     "processors": "",
-                    "interactions": ""
+                    "interactions": "",
+                    "initialStateCheck": true
                 },
                 {
                     "name": "Camera",
@@ -43,7 +48,8 @@
                     "id": "cdd2542b-3da6-4431-be9c-bbf306e4dcd5",
                     "expectedControlType": "Vector2",
                     "processors": "",
-                    "interactions": ""
+                    "interactions": "",
+                    "initialStateCheck": true
                 }
             ],
             "bindings": [
@@ -94,7 +100,7 @@
                 {
                     "name": "negative",
                     "id": "b2c3d4e5-6789-0123-4567-890123456789",
-                    "path": "<Keyboard>/s",
+                    "path": "<Keyboard>/w",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -105,7 +111,7 @@
                 {
                     "name": "positive",
                     "id": "c3d4e5f6-7890-1234-5678-901234567890",
-                    "path": "<Keyboard>/w",
+                    "path": "<Keyboard>/s",
                     "interactions": "",
                     "processors": "",
                     "groups": "",

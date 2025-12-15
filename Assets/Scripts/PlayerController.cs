@@ -36,8 +36,8 @@ public class PlayerController : MonoBehaviour {
         if (plane == null) return;
 
         var input = context.ReadValue<Vector2>();
-        float rollInput = -input.x;  // Roll input (left/right)
-        float pitchInput = input.y;  // Pitch input (up/down)
+        float rollInput = input.x;   // Roll input (left/right) - FIXED: removed negative
+        float pitchInput = -input.y; // Pitch input (up/down) - FIXED: added negative for correct direction
         
         // Add fixed 0.1 yaw when rolling
         float yawFromRoll = rollInput * 0.1f;

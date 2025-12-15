@@ -83,8 +83,8 @@ public class WaypointReward : MonoBehaviour
         DroneAgent agent = other.GetComponent<DroneAgent>();
         if (agent != null)
         {
-            // Award points to the agent (sphere stays in place)
-            agent.CollectWaypoint(rewardAmount);
+            // Award points to the agent (pass this waypoint reference)
+            agent.CollectWaypoint(this, rewardAmount);
         }
     }
 }
