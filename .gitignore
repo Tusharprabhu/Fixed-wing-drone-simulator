@@ -97,3 +97,5 @@ builder.x86_64
 # Ignore Unity demo recordings
 Assets/RECORDING/
 *.demo
+*.demo.meta
+
