@@ -8,10 +8,19 @@ public class BoundaryWall : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        DroneAgent agent = other.GetComponent<DroneAgent>();
-        if (agent != null)
+        // Check for DroneAgent
+        DroneAgent droneAgent = other.GetComponent<DroneAgent>();
+        if (droneAgent != null)
         {
-            agent.HitBoundary(penaltyAmount, endEpisodeOnHit);
+            droneAgent.HitBoundary(penaltyAmount, endEpisodeOnHit);
+            return;
+        }
+        
+        // Check for PitchAgent
+        PitchAgent pitchAgent = other.GetComponent<PitchAgent>();
+        if (pitchAgent != null)
+        {
+            pitchAgent.HitBoundary(penaltyAmount, endEpisodeOnHit);
         }
     }
 

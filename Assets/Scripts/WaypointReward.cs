@@ -80,11 +80,21 @@ public class WaypointReward : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        DroneAgent agent = other.GetComponent<DroneAgent>();
-        if (agent != null)
+        // Check for DroneAgent
+        DroneAgent droneAgent = other.GetComponent<DroneAgent>();
+        if (droneAgent != null)
         {
             // Award points to the agent (pass this waypoint reference)
-            agent.CollectWaypoint(this, rewardAmount);
+            droneAgent.CollectWaypoint(this, rewardAmount);
+            return;
+        }
+        
+        // Check for PitchAgent
+        PitchAgent pitchAgent = other.GetComponent<PitchAgent>();
+        if (pitchAgent != null)
+        {
+            // Award points to the agent (pass this waypoint reference)
+            pitchAgent.CollectWaypoint(this, rewardAmount);
         }
     }
 }
