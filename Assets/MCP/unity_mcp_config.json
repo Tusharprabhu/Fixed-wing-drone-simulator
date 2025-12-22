@@ -1,0 +1,58 @@
+{
+  "name": "Unity ML-Agents MCP Server",
+  "version": "1.0.0",
+  "description": "MCP server for monitoring and controlling Unity ML-Agents drone training",
+  "pythonExecutable": "D:/unity_stack/Fixed-wing-drone-simulator/.venv/Scripts/python.exe",
+  "projectRoot": "D:/unity_stack/Fixed-wing-drone-simulator",
+  "autoStart": true,
+  "port": 6400,
+  "tools": [
+    {
+      "name": "check_training_status",
+      "description": "Check if ML-Agents training is currently running",
+      "function": "check_training_status",
+      "parameters": []
+    },
+    {
+      "name": "monitor_drone_agent",
+      "description": "Monitor DroneAgent logs and performance metrics",
+      "function": "monitor_drone_agent", 
+      "parameters": []
+    },
+    {
+      "name": "get_training_config",
+      "description": "Retrieve current training configuration from DroneAgent.yaml",
+      "function": "get_training_config",
+      "parameters": []
+    },
+    {
+      "name": "get_unity_console_errors",
+      "description": "Get recent Unity console errors and warnings",
+      "function": "get_unity_console_errors",
+      "parameters": []
+    },
+    {
+      "name": "start_training",
+      "description": "Start ML-Agents training with specified run ID",
+      "function": "start_training",
+      "parameters": [
+        {
+          "name": "run_id",
+          "type": "string",
+          "description": "Unique identifier for this training run",
+          "default": "drone_mcp_training"
+        }
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "name": "training_logs",
+      "description": "Real-time access to training logs and metrics"
+    },
+    {
+      "name": "unity_console",
+      "description": "Unity console output and error monitoring"
+    }
+  ]
+}

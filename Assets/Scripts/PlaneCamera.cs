@@ -19,6 +19,14 @@ public class PlaneCamera : MonoBehaviour {
     Vector3 deathOffset;
     [SerializeField]
     float deathSensitivity;
+    
+    [Header("Auto-Find Target")]
+    [SerializeField]
+    bool autoFindDrone = true;
+    [SerializeField]
+    string droneTag = "Player";
+    [SerializeField]
+    int targetEnvironmentID = 0; // Which environment to follow
 
     Transform cameraTransform;
     Plane plane;
@@ -32,6 +40,40 @@ public class PlaneCamera : MonoBehaviour {
 
     void Awake() {
         cameraTransform = camera.GetComponent<Transform>();
+        
+        // Auto-find the drone and its Plane component
+        if (autoFindDrone) {
+            FindAndSetDrone();
+        }
+    }
+
+    void FindAndSetDrone() {
+        GameObject droneObject = null;
+        
+        // Find drone by tag first
+        if (droneObject == null) {
+            droneObject = GameObject.FindWithTag(droneTag);
+        }
+        
+        // Fallback: look for any object with Plane component
+        if (droneObject == null) {
+            Plane foundPlane = FindFirstObjectByType<Plane>();
+            if (foundPlane != null) {
+                droneObject = foundPlane.gameObject;
+            }
+        }
+
+        if (droneObject != null) {
+            Plane dronePlane = droneObject.GetComponent<Plane>();
+            if (dronePlane != null) {
+                SetPlane(dronePlane);
+                Debug.Log($"PlaneCamera: Auto-connected to {droneObject.name}");
+            } else {
+                Debug.LogWarning($"PlaneCamera: Found drone {droneObject.name} but it has no Plane component!");
+            }
+        } else {
+            Debug.LogWarning("PlaneCamera: Could not find drone automatically!");
+        }
     }
 
     public void SetPlane(Plane plane) {
@@ -43,7 +85,10 @@ public class PlaneCamera : MonoBehaviour {
             planeTransform = plane.GetComponent<Transform>();
         }
 
-        cameraTransform.SetParent(planeTransform);
+        // Don't parent the camera to allow independent movement
+        if (planeTransform != null) {
+            Debug.Log($"PlaneCamera: Connected to plane at {planeTransform.name}");
+        }
     }
 
     public void SetInput(Vector2 input) {
@@ -77,7 +122,24 @@ public class PlaneCamera : MonoBehaviour {
         var rotation = Quaternion.Euler(-lookAverage.y, lookAverage.x, 0);  //get rotation from camera input
         var turningRotation = Quaternion.Euler(new Vector3(-avAverage.x, -avAverage.y, avAverage.z) * movementScale);   //get rotation from plane's AV
 
-        cameraTransform.localPosition = rotation * turningRotation * cameraOffset;  //calculate camera position;
-        cameraTransform.localRotation = rotation * turningRotation;                 //calculate camera rotation
+        // Calculate world position instead of local position
+        if (planeTransform != null) {
+            var targetPosition = planeTransform.position + planeTransform.rotation * (rotation * turningRotation * cameraOffset);
+            var targetRotation = planeTransform.rotation * rotation * turningRotation;
+
+            cameraTransform.position = targetPosition;
+            cameraTransform.rotation = targetRotation;
+        }
+    }
+
+    // Add method to change target environment
+    [ContextMenu("Reconnect to Drone")]
+    public void ReconnectToDrone() {
+        FindAndSetDrone();
+    }
+    
+    public void SetTargetEnvironment(int environmentID) {
+        targetEnvironmentID = environmentID;
+        FindAndSetDrone();
     }
 }

@@ -26,9 +26,9 @@ behaviors:
       extrinsic:
         gamma: 0.99             # Discount factor
         strength: 1.0
-    
-    max_steps: 1000000          # 1M steps (shorter for first test)
+      
+    max_steps: 5000000          # 5M steps for thorough training
     time_horizon: 128           # Episode chunk size
     summary_freq: 5000          # TensorBoard updates every 5K steps
     keep_checkpoints: 10        # Keep 10 checkpoints
-    checkpoint_interval: 50000  # Save every 50K steps
+    checkpoint_interval: 50000000  # Set very high to effectively disable (avoid div by zero)

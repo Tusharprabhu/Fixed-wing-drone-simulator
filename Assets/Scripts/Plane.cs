@@ -532,10 +532,8 @@ public class Plane : MonoBehaviour {
         float yawAngle = eulerAngles.y > 180f ? eulerAngles.y - 360f : eulerAngles.y;
         float rollAngle = eulerAngles.z > 180f ? eulerAngles.z - 360f : eulerAngles.z;
         
-        float displayG = DisplayLoadFactor;
-        Debug.Log($"Speed: {worldVelocity.magnitude:F1}m/s | Pitch: {pitchAngle:F1}° | Yaw: {yawAngle:F1}° | Roll: {rollAngle:F1}° | " +
-             $"AOA: {aoaDisplay:F1}° | G: {displayG:F2}g | GForce: {gForceDisplay.magnitude/9.81f:F2}g ({gForceDisplay.x/9.81f:F2}, {gForceDisplay.y/9.81f:F2}, {gForceDisplay.z/9.81f:F2})g");        //handle user input
-        UpdateThrottle(dt);
+           float displayG = DisplayLoadFactor;
+           UpdateThrottle(dt);
 
         if (!Dead) {
             //apply updates

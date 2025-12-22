@@ -1,133 +1,196 @@
 using UnityEngine;
-// Support both the Legacy Input and the new Input System for heuristic controls
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
 using Unity.MLAgents;
 using Unity.MLAgents.Sensors;
 using Unity.MLAgents.Actuators;
-using System.Collections.Generic;
+using System.Linq;
 
 public class DroneAgent : Agent
 {
     private Plane plane;
     private Rigidbody rb;
+    private Transform environmentParent;
+    private Vector3 episodeStartPosition;
     
-    [Header("Training Stats")]
-    [SerializeField] private int waypointsCollected = 0;
-    
-    [Header("Start Position")]
-    [SerializeField] private Vector3 startPosition = new Vector3(0f, 10f, 0f); // Default to air for safety
+    [Header("Start Position - Local Coordinates")]
+    [SerializeField] private Vector3 localStartPosition = new Vector3(0f, 10f, 0f);
     [SerializeField] private float initialSpeed = 20f;
-    [SerializeField] private bool startOnRunway = false;
     
-    [Header("Waypoint Tracking")]
-    private WaypointReward targetWaypoint;
-    private WaypointReward[] allWaypoints;
-    private int totalWaypoints = 0;
-    private HashSet<WaypointReward> collectedWaypoints = new HashSet<WaypointReward>();
-    private float previousDistanceToWaypoint = float.MaxValue;  
+    [Header("Goal Tracking")]
+    private Transform targetGoal;
+    private Transform[] allGoals;
+    private int totalGoals = 0;
+    private int goalsCollectedThisEpisode = 0;
+    private int consecutiveRewards = 0;
     
     [Header("Training Area")]
-    [Tooltip("Parent transform containing this agent's waypoints/boundaries. If null, uses global search.")]
     [SerializeField] private Transform trainingArea;
+    [SerializeField] private float maxDistanceFromStart = 500f; // Max distance from start position
 
     [Header("Stuck Detection")]
-    [SerializeField] private float stuckSpeedThreshold = 2f; // below this speed is considered stuck
-    [SerializeField] private float stuckResetTime = 5f; // seconds before auto-reset
+    [SerializeField] private float stuckSpeedThreshold = 2f;
+    [SerializeField] private float stuckResetTime = 5f;
     private float stuckTimer = 0f;
 
     [Header("Interaction Timeout")]
-    [SerializeField] private float interactionTimeout = 30f; // seconds without reward/penalty before restart
+    [SerializeField] private float interactionTimeout = 60f; // Increased for multi-goal collection
     private float timeSinceLastInteraction = 0f;
 
     public override void Initialize()
     {
+        // Only reset time scale to 1x during inference (when no Python trainer is connected)
+        // During training, mlagents-learn sets --time-scale (e.g., 20x) which we should NOT override
+        var academy = Academy.Instance;
+        if (!academy.IsCommunicatorOn)
+        {
+            Time.timeScale = 1f;
+        }
+        
         plane = GetComponent<Plane>();
         rb = GetComponent<Rigidbody>();
         
-        // Auto-detect training area if not set (look for parent with "TrainingArea" in name)
-        if (trainingArea == null)
+        if (plane == null)
+            Debug.LogError($"DroneAgent: Plane component not found on {gameObject.name}");
+        if (rb == null)
+            Debug.LogError($"DroneAgent: Rigidbody component not found on {gameObject.name}");
+        
+        // Find parent environment transform
+        environmentParent = transform.parent;
+        while (environmentParent != null && !environmentParent.name.Contains("Environment") && !environmentParent.name.Contains("Area"))
         {
-            Transform parent = transform.parent;
-            while (parent != null)
-            {
-                if (parent.name.Contains("TrainingArea") || parent.name.Contains("Area"))
-                {
-                    trainingArea = parent;
-                    break;
-                }
-                parent = parent.parent;
-            }
+            environmentParent = environmentParent.parent;
         }
         
-        // Find waypoints within training area only (or global if no area set)
-        RefreshWaypoints();
-        
-        // If no totalWaypoints found, set a default (user must have 5 waypoints)
-        if (totalWaypoints == 0)
+        if (environmentParent != null)
         {
-            totalWaypoints = 5; // Hardcode as fallback
-            Debug.LogWarning($"<color=orange>No waypoints found automatically! Using default: {totalWaypoints}</color>");
+            trainingArea = environmentParent;
+            Debug.Log($"<color=cyan>[{gameObject.name}] Found environment parent: {environmentParent.name}</color>");
+        }
+        
+        RefreshGoals();
+        
+        if (totalGoals == 0)
+        {
+            Debug.LogWarning($"<color=orange>[{gameObject.name}] No reward spheres found! Make sure spheres are tagged with 'Reward'</color>");
         }
     }
     
-    void RefreshWaypoints()
+    void RefreshGoals()
     {
         if (trainingArea != null)
         {
-            // Get only waypoints within this training area
-            allWaypoints = trainingArea.GetComponentsInChildren<WaypointReward>();
+            // IMPORTANT: Use (true) to include inactive objects so totalGoals is always correct
+            var rewardObjects = trainingArea.GetComponentsInChildren<Transform>(true)
+                .Where(t => t.CompareTag("Reward") && t != trainingArea)
+                .ToArray();
+            
+            allGoals = rewardObjects;
+            totalGoals = allGoals.Length;
+            
+            Debug.Log($"<color=cyan>[{gameObject.name}] Found {totalGoals} reward spheres in local environment</color>");
         }
         else
         {
-            // Fallback to global search
-            allWaypoints = FindObjectsByType<WaypointReward>(FindObjectsSortMode.None);
+            // Fallback: Find all reward objects in scene (only active ones with this method)
+            GameObject[] rewardObjects = GameObject.FindGameObjectsWithTag("Reward");
+            allGoals = new Transform[rewardObjects.Length];
+            
+            for (int i = 0; i < rewardObjects.Length; i++)
+            {
+                allGoals[i] = rewardObjects[i].transform;
+            }
+            
+            totalGoals = allGoals.Length;
+            Debug.LogWarning($"<color=orange>[{gameObject.name}] Using global reward search - found {totalGoals} spheres</color>");
         }
-        
-        totalWaypoints = allWaypoints != null ? allWaypoints.Length : 0;
-        Debug.Log($"<color=cyan>Found {totalWaypoints} waypoints for episode</color>");
     }
 
     public override void OnEpisodeBegin()
     {
-        // Use Plane.ResetTo for a full reset including effects
-        plane.ResetTo(startPosition, Quaternion.identity, initialSpeed);
-        // Ensure rigidbody physics are active again and clear any Kinematic state
-        if (rb != null) rb.isKinematic = false;
+        if (plane == null) plane = GetComponent<Plane>();
+        if (rb == null) rb = GetComponent<Rigidbody>();
         
-        // Reset waypoint counter and collected set
-        waypointsCollected = 0;
-        collectedWaypoints.Clear();
+        if (plane == null || rb == null) return;
+
+        Vector3 worldStartPosition;
+        Quaternion startRotation;
         
-        // Refresh waypoints within training area
-        RefreshWaypoints();
+        if (environmentParent != null)
+        {
+            worldStartPosition = environmentParent.TransformPoint(localStartPosition);
+            startRotation = environmentParent.rotation;
+        }
+        else
+        {
+            worldStartPosition = localStartPosition;
+            startRotation = Quaternion.identity;
+        }
         
-        // Find nearest waypoint
-        UpdateTargetWaypoint();
+        // Store the start position for bounds checking
+        episodeStartPosition = worldStartPosition;
         
-        // Reset stuck timer
+        plane.ResetTo(worldStartPosition, startRotation, initialSpeed);
+        rb.isKinematic = false;
+        
+        consecutiveRewards = 0;
+        goalsCollectedThisEpisode = 0;
+        
+        // Re-enable all reward spheres for new episode
+        ReactivateAllGoals();
+        RefreshGoals();
+        UpdateTargetGoal();
         stuckTimer = 0f;
-        
-        // Reset interaction timer
         timeSinceLastInteraction = 0f;
         
-        // Reset distance tracking
-        previousDistanceToWaypoint = float.MaxValue;
-
-        Debug.Log("<color=blue>*** EPISODE STARTED ***</color> Drone reset to starting position");
+        string envId = environmentParent != null ? environmentParent.name : "Unknown";
+        Debug.Log($"<color=cyan>[{gameObject.name}] Episode reset complete - Env: {envId}, Goals: {totalGoals}, Start: {worldStartPosition}</color>");
+    }
+    
+    void ReactivateAllGoals()
+    {
+        // Re-enable all reward spheres in this environment
+        if (trainingArea != null)
+        {
+            var allRewards = trainingArea.GetComponentsInChildren<Transform>(true) // true = include inactive
+                .Where(t => t.CompareTag("Reward") && t != trainingArea);
+            
+            foreach (var reward in allRewards)
+            {
+                reward.gameObject.SetActive(true);
+            }
+        }
     }
 
     void FixedUpdate()
     {
-        if (rb == null) return;
-        // Avoid stuck detection while kinematic or dead
-        if (rb.isKinematic || plane == null) return;
+        if (rb == null || plane == null) return;
 
-        // If plane reports dead (crashed), end the episode to ensure a proper reset
         if (plane.Dead)
         {
-            Debug.Log("<color=red>*** PLANE DEAD - ENDING EPISODE ***</color>");
+            Debug.Log($"<color=red>[{gameObject.name}] Plane dead - ending episode</color>");
+            EndEpisode();
+            return;
+        }
+        
+        if (rb.isKinematic) return;
+
+        // Bounds check - if too far from episode start position
+        float distanceFromStart = Vector3.Distance(transform.position, episodeStartPosition);
+        if (distanceFromStart > maxDistanceFromStart)
+        {
+            Debug.Log($"<color=red>[{gameObject.name}] Out of bounds ({distanceFromStart:F0}m from start) - ending episode</color>");
+            AddReward(-0.5f);
+            EndEpisode();
+            return;
+        }
+        
+        // Check if fell below ground
+        if (transform.position.y < 0f)
+        {
+            Debug.Log($"<color=red>[{gameObject.name}] Below ground level - ending episode</color>");
+            AddReward(-0.5f);
             EndEpisode();
             return;
         }
@@ -138,7 +201,7 @@ public class DroneAgent : Agent
             stuckTimer += Time.fixedDeltaTime;
             if (stuckTimer > stuckResetTime)
             {
-                Debug.Log($"<color=orange>*** STUCK TOO LONG ({stuckTimer:F1}s) - RESTARTING EPISODE ***</color>");
+                Debug.Log($"<color=orange>[{gameObject.name}] Stuck too long ({stuckTimer:F1}s) - restarting episode</color>");
                 stuckTimer = 0f;
                 EndEpisode();
                 return;
@@ -149,276 +212,156 @@ public class DroneAgent : Agent
             stuckTimer = 0f;
         }
         
-        // Check interaction timeout - restart if no reward/penalty for too long
         timeSinceLastInteraction += Time.fixedDeltaTime;
         if (timeSinceLastInteraction > interactionTimeout)
         {
-            Debug.Log($"<color=yellow>*** NO INTERACTION FOR {interactionTimeout}s - RESTARTING EPISODE ***</color>");
-            AddReward(-5f); // Small penalty for timing out
+            Debug.Log($"<color=yellow>[{gameObject.name}] No interaction for {interactionTimeout}s - timeout penalty</color>");
+            AddReward(-0.1f);
             EndEpisode();
         }
+        
+        // Update target goal periodically
+        UpdateTargetGoal();
     }
 
     public override void CollectObservations(VectorSensor sensor)
     {
-        // Agent's own velocity (3 values: X, Y, Z)
-        sensor.AddObservation(rb.linearVelocity);
+        Vector3 localVelocity = rb.linearVelocity;
+        sensor.AddObservation(localVelocity);
         
-        // Direction to next checkpoint (3 values: X, Y, Z) - normalized
-        if (targetWaypoint != null)
+        if (targetGoal != null)
         {
-            Vector3 directionToWaypoint = (targetWaypoint.transform.position - transform.position).normalized;
-            sensor.AddObservation(directionToWaypoint);
+            Vector3 directionToGoal = (targetGoal.position - transform.position).normalized;
+            Vector3 goalForward = targetGoal.forward;
             
-            // Direction the checkpoint is facing (3 values: X, Y, Z) - forward vector
-            sensor.AddObservation(targetWaypoint.transform.forward);
+            sensor.AddObservation(directionToGoal);
+            sensor.AddObservation(goalForward);
         }
         else
         {
-            // No waypoint - use zero vectors
             sensor.AddObservation(Vector3.zero);
             sensor.AddObservation(Vector3.zero);
         }
-        
-        // Total observations: 3 + 3 + 3 = 9 base observations
-        // Add raycasts if needed to reach 33 total
     }
 
     public override void OnActionReceived(ActionBuffers actions)
     {
-        // Discrete actions: 2 branches, 3 choices each
-        // Branch 0: Pitch (0=up, 1=neutral, 2=down)
-        // Branch 1: Roll (0=left, 1=neutral, 2=right) - agent controls roll directly
-
         int pitchAction = actions.DiscreteActions[0];
-        int rollAction = actions.DiscreteActions[1];
 
-        // Convert discrete actions to control inputs
         float pitch = 0f;
         if (pitchAction == 0) pitch = 1f;      // Pitch up
         else if (pitchAction == 2) pitch = -1f; // Pitch down
 
-        float roll = 0f;
-        if (rollAction == 0) roll = -1f;        // Roll left
-        else if (rollAction == 2) roll = 1f;    // Roll right
-
-        // Apply controls (roll is the agent-controlled channel)
-        // Plane.SetControlInput expects Vector3(pitch, yawFromRoll, roll)
-        // We place roll into the z channel; yawFromRoll (y) remains 0 for agent.
-        plane.SetControlInput(new Vector3(pitch, 0f, roll * 0.5f));
-        plane.SetThrottleInput(1f); // Full throttle for now
-
-        // Rewards
-        float reward = 0f;
-
-        // Small time penalty to encourage efficiency
-        reward -= 0.002f;
-        
-        // Waypoint-based rewards
-        if (targetWaypoint != null)
+        if (plane != null)
         {
-            Vector3 dirToWaypoint = (targetWaypoint.transform.position - transform.position).normalized;
+            plane.SetControlInput(new Vector3(pitch, 0f, 0f));
+            plane.SetThrottleInput(1f);
+        }
+        
+        // Small reward for flying toward goal
+        if (targetGoal != null && rb != null)
+        {
+            Vector3 toGoal = (targetGoal.position - transform.position).normalized;
             Vector3 velocity = rb.linearVelocity.normalized;
-            float alignment = Vector3.Dot(velocity, dirToWaypoint);
+            float alignment = Vector3.Dot(velocity, toGoal);
             
-            // Stronger alignment reward
-            reward += alignment * 0.5f;
-            
-            // Distance-based progress reward
-            float currentDistance = Vector3.Distance(transform.position, targetWaypoint.transform.position);
-            if (previousDistanceToWaypoint != float.MaxValue)
-            {
-                float distanceProgress = previousDistanceToWaypoint - currentDistance;
-                reward += distanceProgress * 0.01f; // Reward for getting closer
-            }
-            previousDistanceToWaypoint = currentDistance;
-            
-            // Penalty for being too far from waypoint
-            if (currentDistance > 200f)
-            {
-                reward -= 0.05f;
-            }
-        }
-
-        // Speed rewards - encourage maintaining good flight speed
-        float speed = rb.linearVelocity.magnitude;
-        if (speed > 15f && speed < 50f)
-        {
-            reward += 0.05f; // Good speed range
-        }
-        else if (speed < 10f)
-        {
-            reward -= 0.1f; // Too slow, risk of stalling
-        }
-        else if (speed > 60f)
-        {
-            reward -= 0.05f; // Too fast, hard to control
+            // Small reward for flying toward goal (max +0.01 per step)
+            AddReward(alignment * 0.01f);
         }
         
-        // Height rewards - stay in reasonable altitude
-        float height = transform.position.y;
-        if (height > 5f && height < 45f)
-        {
-            reward += 0.03f; // Good altitude within tunnel
-        }
-        else if (height > 45f)
-        {
-            reward -= 0.1f; // Too high, hitting ceiling
-        }
-        
-        // Clamp reward to reduce extreme spikes
-        reward = Mathf.Clamp(reward, -2f, 2f);
+        // Small penalty to encourage faster completion
+        AddReward(-0.001f);
+    }
 
-        // Penalty for crashing into terrain (-10)
-        if (transform.position.y < 0)
-        {
-            reward -= 10f;
-            timeSinceLastInteraction = 0f; // Reset interaction timer
-            Debug.Log("<color=red>*** TERRAIN CRASH! ***</color> Drone hit ground (-10) - Episode restarting");
+    private void OnTriggerEnter(Collider other) {
+        if (other.CompareTag("Reward")) {
+            consecutiveRewards++;
+            goalsCollectedThisEpisode++;
+            
+            // Reward increases with each consecutive goal: 1.0, 1.1, 1.2, 1.3, 1.4 for goals 1-5
+            float rewardAmount = 1f + (consecutiveRewards - 1) * 0.1f;
+            AddReward(rewardAmount); // Use AddReward for accumulation
+            timeSinceLastInteraction = 0f;
+            
+            string envId = environmentParent != null ? environmentParent.name : "?";
+            Debug.Log($"<color=green>[{gameObject.name}] Goal {goalsCollectedThisEpisode}/{totalGoals} collected! Env: {envId}, Reward: +{rewardAmount:F1}</color>");
+            
+            // Disable this reward sphere
+            other.gameObject.SetActive(false);
+            
+            // End episode when 5 rewards have been collected (scene contains exactly 5 reward spheres)
+            if (goalsCollectedThisEpisode >= 5)
+            {
+                // Bonus for completing the 5 required goals
+                AddReward(2f);
+                EndEpisode();
+                return;
+            }
+            else
+            {
+                // Update to next closest goal
+                UpdateTargetGoal();
+            }
+        }
+        if (other.TryGetComponent<Wall>(out Wall wall)) {
+            consecutiveRewards = 0;
+            AddReward(-1f); // Use AddReward for accumulation
+            timeSinceLastInteraction = 0f;
+            string envId = environmentParent != null ? environmentParent.name : "?";
+            Debug.Log($"<color=red>[{gameObject.name}] Wall hit! Env: {envId}, Penalty: -1, Goals collected: {goalsCollectedThisEpisode}/{totalGoals}</color>");
             EndEpisode();
         }
-        
-        // Also check for other crash conditions
-        if (rb.linearVelocity.magnitude < 5f && transform.position.y < 20f)
-        {
-            // Stalled too close to ground
-            reward -= 5f;
-            Debug.Log("<color=orange>*** STALL! ***</color> Drone stalled - Episode restarting");
-            EndEpisode();
-        }
-
-        // Penalty for excessive G-force
-        float gForce = plane.DisplayLoadFactor;
-        if (Mathf.Abs(gForce) > 5f)
-        {
-            reward -= 0.05f;
-        }
-
-        AddReward(reward);
     }
 
     public override void Heuristic(in ActionBuffers actionsOut)
     {
         var discreteActionsOut = actionsOut.DiscreteActions;
         
-        // Heuristic support: Prefer Unity Input System if enabled, otherwise use legacy Input.
-        bool usedInput = false;
 #if ENABLE_INPUT_SYSTEM
         try
         {
             if (Keyboard.current != null)
             {
-                // Pitch control: W/S or Up/Down arrows
-                if (Keyboard.current.wKey.isPressed || Keyboard.current.upArrowKey.isPressed)
+                if (Keyboard.current.upArrowKey.isPressed)
                     discreteActionsOut[0] = 0; // Pitch up
-                else if (Keyboard.current.sKey.isPressed || Keyboard.current.downArrowKey.isPressed)
+                else if (Keyboard.current.downArrowKey.isPressed)
                     discreteActionsOut[0] = 2; // Pitch down
                 else
-                    discreteActionsOut[0] = 1; // Neutral
-
-                // Roll control: A/D or Left/Right arrows
-                if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed)
-                    discreteActionsOut[1] = 0; // Roll left
-                else if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed)
-                    discreteActionsOut[1] = 2; // Roll right
-                else
-                    discreteActionsOut[1] = 1; // Neutral
-
-                usedInput = true;
+                    discreteActionsOut[0] = 1; // Neutral (nothing)
+                return;
             }
         }
         catch
         {
-            // If anything goes wrong with the input system, fallback to legacy Input below
-            usedInput = false;
         }
 #endif
 
 #if ENABLE_LEGACY_INPUT_MANAGER
-        if (!usedInput)
-        {
-            // Legacy Input fallback (works if "Input Manager (Old)" or "Both" are enabled in Player Settings)
-            if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
-                discreteActionsOut[0] = 0; // Pitch up
-            else if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
-                discreteActionsOut[0] = 2; // Pitch down
-            else
-                discreteActionsOut[0] = 1; // Neutral
-
-            if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
-                discreteActionsOut[1] = 0; // Roll left
-            else if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
-                discreteActionsOut[1] = 2; // Roll right
-            else
-                discreteActionsOut[1] = 1; // Neutral
-        }
+        if (Input.GetKey(KeyCode.UpArrow))
+            discreteActionsOut[0] = 0; // Pitch up
+        else if (Input.GetKey(KeyCode.DownArrow))
+            discreteActionsOut[0] = 2; // Pitch down
+        else
+            discreteActionsOut[0] = 1; // Neutral (nothing)
 #endif
     }
 
-    // Called by WaypointReward when collected
-    public void CollectWaypoint(WaypointReward waypoint, float rewardAmount)
+    void UpdateTargetGoal()
     {
-        // Check if already collected this episode
-        if (collectedWaypoints.Contains(waypoint))
-        {
-            return; // Already collected, ignore
-        }
-        
-        // Mark as collected
-        collectedWaypoints.Add(waypoint);
-        waypointsCollected++;
-        AddReward(rewardAmount);
-        timeSinceLastInteraction = 0f; // Reset interaction timer
-        
-        // Display progress (use actual required waypoints for display)
-        int displayTotal = totalWaypoints > 0 ? totalWaypoints : 5;
-        Debug.Log($"<color=green>✓ WAYPOINT COLLECTED</color> - Progress: {waypointsCollected}/{displayTotal} | Reward: +{rewardAmount}");
-        
-        // Check if all waypoints collected (use 5 as minimum if totalWaypoints is wrong)
-        int requiredWaypoints = totalWaypoints > 0 ? totalWaypoints : 5;
-        if (waypointsCollected >= requiredWaypoints)
-        {
-            AddReward(20f); // Bonus for completing all waypoints!
-            Debug.Log($"<color=lime>★★★ ALL {waypointsCollected} WAYPOINTS COLLECTED ★★★</color> Completion Bonus: +20 | Episode restarting!");
-            EndEpisode();
-            return;
-        }
-        
-        // Find next waypoint
-        UpdateTargetWaypoint();
-    }
-    
-    // Find nearest uncollected waypoint
-    void UpdateTargetWaypoint()
-    {
-        targetWaypoint = null;
+        targetGoal = null;
         float minDistance = float.MaxValue;
         
-        foreach (var waypoint in allWaypoints)
+        foreach (var goal in allGoals)
         {
-            if (waypoint != null && waypoint.gameObject.activeInHierarchy)
+            if (goal != null && goal.gameObject.activeInHierarchy)
             {
-                float distance = Vector3.Distance(transform.position, waypoint.transform.position);
+                float distance = Vector3.Distance(transform.position, goal.position);
                 if (distance < minDistance)
                 {
                     minDistance = distance;
-                    targetWaypoint = waypoint;
+                    targetGoal = goal;
                 }
             }
-        }
-    }
-
-    // Called by BoundaryWall when hit
-    public void HitBoundary(float penaltyAmount, bool endEpisode)
-    {
-        AddReward(penaltyAmount);
-        timeSinceLastInteraction = 0f; // Reset interaction timer
-        Debug.Log($"<color=red>WALL TOUCHED</color> - Penalty: {penaltyAmount}");
-        
-        if (endEpisode)
-        {
-            Debug.Log("<color=red>*** BOUNDARY VIOLATION ***</color> Episode restarting");
-            EndEpisode();
         }
     }
 }

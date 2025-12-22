@@ -10,8 +10,8 @@ public class HUDPanelController : MonoBehaviour
     Text altitudeText;
     Text aoaText;
     Text gforceText;
+    Text headingText; // Added Heading
     Bar throttleBar;
-    // Compass is removed: no compassText field required
 
     // HUD uses SI units: meters and meters/second
 
@@ -53,6 +53,12 @@ public class HUDPanelController : MonoBehaviour
         {
             gforceText = gforce.GetComponentInChildren<Text>();
         }
+        
+        Transform heading = transform.Find("Heading");
+        if (heading != null)
+        {
+            headingText = heading.GetComponentInChildren<Text>();
+        }
 
         Transform throttle = transform.Find("ThrottleBar");
         if (throttle != null)
@@ -60,10 +66,7 @@ public class HUDPanelController : MonoBehaviour
             throttleBar = throttle.GetComponent<Bar>();
         }
 
-        // Compass removed from HUD - no lookup here
-
         // Check if all components were found
-        // GForce element is optional: removed from HUD calculation by default.
         bool allFound = airspeedText != null && altitudeText != null && 
             aoaText != null && throttleBar != null;
         
@@ -101,7 +104,6 @@ public class HUDPanelController : MonoBehaviour
         // Altitude in meters
         float altitude = plane.Rigidbody.position.y;
         float aoa = plane.DisplayAOA; // Use display AOA (pitch angle)
-        // GForce display removed for now; will be replaced with user-provided calculation when available.
         float throttle = plane.Throttle * 100f;
         float heading = plane.transform.eulerAngles.y;
 
@@ -127,12 +129,15 @@ public class HUDPanelController : MonoBehaviour
             float gLoad = plane.DisplayLoadFactor;
             gforceText.text = $"{gLoad:0.00} G";
         }
+        
+        if (headingText != null)
+        {
+            headingText.text = $"{heading:0}°";
+        }
 
         if (throttleBar != null)
         {
             throttleBar.SetValue(plane.Throttle);
         }
-
-        // Compass removed: no HUD update
     }
 }

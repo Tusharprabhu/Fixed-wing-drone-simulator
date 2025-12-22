@@ -9,14 +9,38 @@
       },
       "hash": "edd7817d4010032b47e6874c165c8d0b37680407"
     },
+    "com.unity.ai.assistant": {
+      "version": "1.0.0-pre.12",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.ai.toolkit": "1.0.0-pre.18",
+        "com.unity.serialization": "3.1.1",
+        "com.unity.nuget.newtonsoft-json": "3.2.1",
+        "com.unity.modules.unitywebrequest": "1.0.0"
+      },
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.ai.generators": {
+      "version": "1.0.0-pre.20",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.ai.toolkit": "1.0.0-pre.20",
+        "com.unity.mathematics": "1.3.2",
+        "com.unity.nuget.newtonsoft-json": "3.2.1"
+      },
+      "url": "https://packages.unity.com"
+    },
     "com.unity.ai.inference": {
-      "version": "2.3.0",
-      "depth": 1,
+      "version": "2.4.1",
+      "depth": 0,
       "source": "registry",
       "dependencies": {
         "com.unity.burst": "1.8.17",
         "com.unity.dt.app-ui": "1.3.1",
         "com.unity.collections": "2.4.3",
+        "com.unity.nuget.newtonsoft-json": "3.2.1",
         "com.unity.modules.imageconversion": "1.0.0"
       },
       "url": "https://packages.unity.com"
@@ -30,9 +54,18 @@
       },
       "url": "https://packages.unity.com"
     },
+    "com.unity.ai.toolkit": {
+      "version": "1.0.0-pre.20",
+      "depth": 1,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.nuget.newtonsoft-json": "3.2.1"
+      },
+      "url": "https://packages.unity.com"
+    },
     "com.unity.burst": {
-      "version": "1.8.25",
-      "depth": 2,
+      "version": "1.8.26",
+      "depth": 1,
       "source": "registry",
       "dependencies": {
         "com.unity.mathematics": "1.2.1",
@@ -41,7 +74,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.collab-proxy": {
-      "version": "2.10.0",
+      "version": "2.10.2",
       "depth": 0,
       "source": "registry",
       "dependencies": {},
@@ -49,7 +82,7 @@
     },
     "com.unity.collections": {
       "version": "2.6.2",
-      "depth": 2,
+      "depth": 1,
       "source": "registry",
       "dependencies": {
         "com.unity.burst": "1.8.23",
@@ -61,8 +94,8 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.dt.app-ui": {
-      "version": "1.3.1",
-      "depth": 2,
+      "version": "2.1.1",
+      "depth": 1,
       "source": "registry",
       "dependencies": {
         "com.unity.modules.physics": "1.0.0",
@@ -97,7 +130,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.inputsystem": {
-      "version": "1.14.2",
+      "version": "1.17.0",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -106,8 +139,8 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.mathematics": {
-      "version": "1.3.2",
-      "depth": 3,
+      "version": "1.3.3",
+      "depth": 1,
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
@@ -125,7 +158,7 @@
       "hash": "f248e982e521442c4f4e59dc56b7aea5c3505095"
     },
     "com.unity.multiplayer.center": {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "depth": 0,
       "source": "builtin",
       "dependencies": {
@@ -133,32 +166,26 @@
       }
     },
     "com.unity.nuget.mono-cecil": {
-      "version": "1.11.5",
-      "depth": 3,
+      "version": "1.11.6",
+      "depth": 2,
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
     },
     "com.unity.nuget.newtonsoft-json": {
-      "version": "3.2.1",
+      "version": "3.2.2",
       "depth": 1,
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
     },
-    "com.unity.sysroot": {
-      "version": "2.0.10",
-      "depth": 1,
-      "source": "registry",
-      "dependencies": {},
-      "url": "https://packages.unity.com"
-    },
-    "com.unity.sysroot.linux-x86_64": {
-      "version": "2.0.9",
+    "com.unity.serialization": {
+      "version": "3.1.3",
       "depth": 1,
       "source": "registry",
       "dependencies": {
-        "com.unity.sysroot": "2.0.10"
+        "com.unity.burst": "1.7.2",
+        "com.unity.collections": "2.4.2"
       },
       "url": "https://packages.unity.com"
     },
@@ -174,7 +201,7 @@
     },
     "com.unity.test-framework.performance": {
       "version": "3.2.0",
-      "depth": 3,
+      "depth": 2,
       "source": "registry",
       "dependencies": {
         "com.unity.test-framework": "1.1.33",
@@ -194,16 +221,6 @@
       },
       "url": "https://packages.unity.com"
     },
-    "com.unity.toolchain.linux-x86_64": {
-      "version": "2.0.11",
-      "depth": 0,
-      "source": "registry",
-      "dependencies": {
-        "com.unity.sysroot": "2.0.10",
-        "com.unity.sysroot.linux-x86_64": "2.0.9"
-      },
-      "url": "https://packages.unity.com"
-    },
     "com.unity.ugui": {
       "version": "2.0.0",
       "depth": 0,
@@ -218,6 +235,14 @@
       "depth": 0,
       "source": "builtin",
       "dependencies": {}
+    },
+    "com.unity.modules.adaptiveperformance": {
+      "version": "1.0.0",
+      "depth": 0,
+      "source": "builtin",
+      "dependencies": {
+        "com.unity.modules.subsystems": "1.0.0"
+      }
     },
     "com.unity.modules.ai": {
       "version": "1.0.0",
@@ -424,6 +449,16 @@
         "com.unity.modules.audio": "1.0.0",
         "com.unity.modules.assetbundle": "1.0.0",
         "com.unity.modules.imageconversion": "1.0.0"
+      }
+    },
+    "com.unity.modules.vectorgraphics": {
+      "version": "1.0.0",
+      "depth": 0,
+      "source": "builtin",
+      "dependencies": {
+        "com.unity.modules.uielements": "1.0.0",
+        "com.unity.modules.imageconversion": "1.0.0",
+        "com.unity.modules.imgui": "1.0.0"
       }
     },
     "com.unity.modules.vehicles": {
