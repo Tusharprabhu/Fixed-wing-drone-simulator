@@ -1,3 +1,61 @@
+# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+UserSettings/
+MemoryCaptures/
+Logs/
+Library/ScriptAssemblies/
+Library/ArtifactDB/
+
+# Unity cache / package manager
+PackageCache/
+Library/PackageCache/
+
+# Visual Studio / Rider / VSCode
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# Python
+.venv/
+env/
+venv/
+__pycache__/
+*.py[cod]
+pip-wheel-metadata/
+
+# Training artifacts and large outputs
+results/
+
+# Temp and backup
+Temp/
+*.backup
+*.bak
+
+# Build files
+*.apk
+*.aab
+*.exe
+*.app
+
+# Logs
+*.log
+
+# Node
+node_modules/
 # This .gitignore file should be placed at the root of your Unity project directory
 #
 # Get latest from https://github.com/github/gitignore/blob/master/Unity.gitignore
@@ -98,4 +156,19 @@ builder.x86_64
 Assets/RECORDING/
 *.demo
 *.demo.meta
+
+# Generated Managed assemblies (ignore generated caches)
+# Ignore common generated Managed folders produced by Unity builds and caches
+Build/*_Data/Managed/
+Library/Managed/
+Temp/Managed/
+# Ignore any other Managed directory by default, but keep Assets/Plugins/Managed if you intentionally add DLLs
+**/Managed/
+!Assets/Plugins/Managed/
+
+# Ignore standalone build output and its data folders
+DroneSimulator/
+*/FlightSim_Data/
+*/FlightSim_*/
+*/_Data/
 
