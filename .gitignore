@@ -31,8 +31,7 @@ Thumbs.db
 
 # Python
 .venv/
-env/
-venv/
+venv_mlagents/
 __pycache__/
 *.py[cod]
 pip-wheel-metadata/

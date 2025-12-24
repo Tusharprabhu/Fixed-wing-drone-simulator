@@ -302,3 +302,5 @@ Stall	0	-5 (avoided!)
 Boundary hit	0	-5 (avoided!)
 Your agent is NOT performing poorly - it's performing EXCELLENTLY! The full analysis has been saved to CRITICAL_REWARD_ANALYSIS.md.
 
+.\.venv\Scripts\Activate.ps1; 
+python -m mlagents.trainers.learn Assets/DroneAgent.yaml --run-id=dronev4 --initialize-from=drone_v3 --force --time-scale=20

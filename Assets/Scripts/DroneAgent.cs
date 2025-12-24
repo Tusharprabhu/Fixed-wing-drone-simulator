@@ -17,17 +17,23 @@ public class DroneAgent : Agent
     [Header("Start Position - Local Coordinates")]
     [SerializeField] private Vector3 localStartPosition = new Vector3(0f, 10f, 0f);
     [SerializeField] private float initialSpeed = 20f;
+    [Header("Start Position Randomization")]
+    [Tooltip("Enable randomizing the local start Y each episode")]
+    [SerializeField] private bool randomizeStartY = true;
+    [Tooltip("Min start local Y (used when randomizeStartY is true)")]
+    [SerializeField] private float startYMin = 10f;
+    [Tooltip("Max start local Y (used when randomizeStartY is true)")]
+    [SerializeField] private float startYMax = 30f;
     
     [Header("Goal Tracking")]
     private Transform targetGoal;
     private Transform[] allGoals;
-    private int totalGoals = 0;
-    private int goalsCollectedThisEpisode = 0;
-    private int consecutiveRewards = 0;
+    private int currentGoalIndex = 0;  // Track which goal to collect next
+    private int totalGoals = 5;        // Fixed: always 5 goals
     
     [Header("Training Area")]
     [SerializeField] private Transform trainingArea;
-    [SerializeField] private float maxDistanceFromStart = 500f; // Max distance from start position
+    [SerializeField] private float maxDistanceFromStart = 500f;
 
     [Header("Stuck Detection")]
     [SerializeField] private float stuckSpeedThreshold = 2f;
@@ -35,13 +41,11 @@ public class DroneAgent : Agent
     private float stuckTimer = 0f;
 
     [Header("Interaction Timeout")]
-    [SerializeField] private float interactionTimeout = 60f; // Increased for multi-goal collection
+    [SerializeField] private float interactionTimeout = 60f;
     private float timeSinceLastInteraction = 0f;
 
     public override void Initialize()
     {
-        // Only reset time scale to 1x during inference (when no Python trainer is connected)
-        // During training, mlagents-learn sets --time-scale (e.g., 20x) which we should NOT override
         var academy = Academy.Instance;
         if (!academy.IsCommunicatorOn)
         {
@@ -56,7 +60,6 @@ public class DroneAgent : Agent
         if (rb == null)
             Debug.LogError($"DroneAgent: Rigidbody component not found on {gameObject.name}");
         
-        // Find parent environment transform
         environmentParent = transform.parent;
         while (environmentParent != null && !environmentParent.name.Contains("Environment") && !environmentParent.name.Contains("Area"))
         {
@@ -71,9 +74,9 @@ public class DroneAgent : Agent
         
         RefreshGoals();
         
-        if (totalGoals == 0)
+        if (totalGoals != 5)
         {
-            Debug.LogWarning($"<color=orange>[{gameObject.name}] No reward spheres found! Make sure spheres are tagged with 'Reward'</color>");
+            Debug.LogWarning($"<color=orange>[{gameObject.name}] Expected 5 reward spheres but found {totalGoals}! Make sure there are exactly 5 spheres tagged 'Reward'</color>");
         }
     }
     
@@ -81,26 +84,20 @@ public class DroneAgent : Agent
     {
         if (trainingArea != null)
         {
-            // IMPORTANT: Use (true) to include inactive objects so totalGoals is always correct
             var rewardObjects = trainingArea.GetComponentsInChildren<Transform>(true)
                 .Where(t => t.CompareTag("Reward") && t != trainingArea)
+                .OrderBy(t => t.name)  // Sort by name: Sphere (1), Sphere (2), etc.
                 .ToArray();
             
             allGoals = rewardObjects;
             totalGoals = allGoals.Length;
             
-            Debug.Log($"<color=cyan>[{gameObject.name}] Found {totalGoals} reward spheres in local environment</color>");
+            Debug.Log($"<color=cyan>[{gameObject.name}] Found {totalGoals} reward spheres in order: {string.Join(", ", allGoals.Select(g => g.name))}</color>");
         }
         else
         {
-            // Fallback: Find all reward objects in scene (only active ones with this method)
             GameObject[] rewardObjects = GameObject.FindGameObjectsWithTag("Reward");
-            allGoals = new Transform[rewardObjects.Length];
-            
-            for (int i = 0; i < rewardObjects.Length; i++)
-            {
-                allGoals[i] = rewardObjects[i].transform;
-            }
+            allGoals = rewardObjects.OrderBy(g => g.name).Select(g => g.transform).ToArray();
             
             totalGoals = allGoals.Length;
             Debug.LogWarning($"<color=orange>[{gameObject.name}] Using global reward search - found {totalGoals} spheres</color>");
@@ -114,50 +111,57 @@ public class DroneAgent : Agent
         
         if (plane == null || rb == null) return;
 
+        Vector3 runtimeLocalStart = localStartPosition;
+        if (randomizeStartY)
+        {
+            runtimeLocalStart.y = Random.Range(startYMin, startYMax);
+        }
+
         Vector3 worldStartPosition;
         Quaternion startRotation;
         
         if (environmentParent != null)
         {
-            worldStartPosition = environmentParent.TransformPoint(localStartPosition);
+            worldStartPosition = environmentParent.TransformPoint(runtimeLocalStart);
             startRotation = environmentParent.rotation;
         }
         else
         {
-            worldStartPosition = localStartPosition;
+            worldStartPosition = runtimeLocalStart;
             startRotation = Quaternion.identity;
         }
         
-        // Store the start position for bounds checking
         episodeStartPosition = worldStartPosition;
         
         plane.ResetTo(worldStartPosition, startRotation, initialSpeed);
         rb.isKinematic = false;
         
-        consecutiveRewards = 0;
-        goalsCollectedThisEpisode = 0;
+        currentGoalIndex = 0;  // Start from first goal
         
-        // Re-enable all reward spheres for new episode
         ReactivateAllGoals();
         RefreshGoals();
-        UpdateTargetGoal();
+        UpdateTargetGoal();  // Set first goal as target
+        
         stuckTimer = 0f;
         timeSinceLastInteraction = 0f;
         
         string envId = environmentParent != null ? environmentParent.name : "Unknown";
-        Debug.Log($"<color=cyan>[{gameObject.name}] Episode reset complete - Env: {envId}, Goals: {totalGoals}, Start: {worldStartPosition}</color>");
+        Debug.Log($"<color=cyan>[{gameObject.name}] Episode START - Env: {envId}, Target: {(targetGoal != null ? targetGoal.name : "None")}</color>");
     }
     
     void ReactivateAllGoals()
     {
-        // Re-enable all reward spheres in this environment
         if (trainingArea != null)
         {
-            var allRewards = trainingArea.GetComponentsInChildren<Transform>(true) // true = include inactive
+            var allRewards = trainingArea.GetComponentsInChildren<Transform>(true)
                 .Where(t => t.CompareTag("Reward") && t != trainingArea);
             
             foreach (var reward in allRewards)
             {
+                Vector3 localPos = reward.localPosition;
+                localPos.y = Random.Range(10f, 30f);
+                reward.localPosition = localPos;
+                
                 reward.gameObject.SetActive(true);
             }
         }
@@ -176,20 +180,18 @@ public class DroneAgent : Agent
         
         if (rb.isKinematic) return;
 
-        // Bounds check - if too far from episode start position
         float distanceFromStart = Vector3.Distance(transform.position, episodeStartPosition);
         if (distanceFromStart > maxDistanceFromStart)
         {
-            Debug.Log($"<color=red>[{gameObject.name}] Out of bounds ({distanceFromStart:F0}m from start) - ending episode</color>");
+            Debug.Log($"<color=red>[{gameObject.name}] Out of bounds ({distanceFromStart:F0}m) - ending episode</color>");
             AddReward(-0.5f);
             EndEpisode();
             return;
         }
         
-        // Check if fell below ground
         if (transform.position.y < 0f)
         {
-            Debug.Log($"<color=red>[{gameObject.name}] Below ground level - ending episode</color>");
+            Debug.Log($"<color=red>[{gameObject.name}] Below ground - ending episode</color>");
             AddReward(-0.5f);
             EndEpisode();
             return;
@@ -201,8 +203,8 @@ public class DroneAgent : Agent
             stuckTimer += Time.fixedDeltaTime;
             if (stuckTimer > stuckResetTime)
             {
-                Debug.Log($"<color=orange>[{gameObject.name}] Stuck too long ({stuckTimer:F1}s) - restarting episode</color>");
-                stuckTimer = 0f;
+                Debug.Log($"<color=orange>[{gameObject.name}] Stuck - restarting episode</color>");
+                AddReward(-0.3f);
                 EndEpisode();
                 return;
             }
@@ -215,13 +217,10 @@ public class DroneAgent : Agent
         timeSinceLastInteraction += Time.fixedDeltaTime;
         if (timeSinceLastInteraction > interactionTimeout)
         {
-            Debug.Log($"<color=yellow>[{gameObject.name}] No interaction for {interactionTimeout}s - timeout penalty</color>");
+            Debug.Log($"<color=yellow>[{gameObject.name}] Timeout - ending episode</color>");
             AddReward(-0.1f);
             EndEpisode();
         }
-        
-        // Update target goal periodically
-        UpdateTargetGoal();
     }
 
     public override void CollectObservations(VectorSensor sensor)
@@ -249,8 +248,8 @@ public class DroneAgent : Agent
         int pitchAction = actions.DiscreteActions[0];
 
         float pitch = 0f;
-        if (pitchAction == 0) pitch = 1f;      // Pitch up
-        else if (pitchAction == 2) pitch = -1f; // Pitch down
+        if (pitchAction == 0) pitch = 1f;
+        else if (pitchAction == 2) pitch = -1f;
 
         if (plane != null)
         {
@@ -258,57 +257,63 @@ public class DroneAgent : Agent
             plane.SetThrottleInput(1f);
         }
         
-        // Small reward for flying toward goal
         if (targetGoal != null && rb != null)
         {
             Vector3 toGoal = (targetGoal.position - transform.position).normalized;
             Vector3 velocity = rb.linearVelocity.normalized;
             float alignment = Vector3.Dot(velocity, toGoal);
             
-            // Small reward for flying toward goal (max +0.01 per step)
             AddReward(alignment * 0.01f);
         }
         
-        // Small penalty to encourage faster completion
         AddReward(-0.001f);
     }
 
-    private void OnTriggerEnter(Collider other) {
-        if (other.CompareTag("Reward")) {
-            consecutiveRewards++;
-            goalsCollectedThisEpisode++;
-            
-            // Reward increases with each consecutive goal: 1.0, 1.1, 1.2, 1.3, 1.4 for goals 1-5
-            float rewardAmount = 1f + (consecutiveRewards - 1) * 0.1f;
-            AddReward(rewardAmount); // Use AddReward for accumulation
-            timeSinceLastInteraction = 0f;
-            
-            string envId = environmentParent != null ? environmentParent.name : "?";
-            Debug.Log($"<color=green>[{gameObject.name}] Goal {goalsCollectedThisEpisode}/{totalGoals} collected! Env: {envId}, Reward: +{rewardAmount:F1}</color>");
-            
-            // Disable this reward sphere
-            other.gameObject.SetActive(false);
-            
-            // End episode when 5 rewards have been collected (scene contains exactly 5 reward spheres)
-            if (goalsCollectedThisEpisode >= 5)
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Reward"))
+        {
+            // Check if this is the correct goal in sequence
+            if (allGoals != null && currentGoalIndex < allGoals.Length && other.transform == allGoals[currentGoalIndex])
             {
-                // Bonus for completing the 5 required goals
-                AddReward(2f);
-                EndEpisode();
-                return;
+                currentGoalIndex++;
+                
+                float rewardAmount = 1f + (currentGoalIndex - 1) * 0.1f;  // 1.0, 1.1, 1.2, 1.3, 1.4
+                AddReward(rewardAmount);
+                timeSinceLastInteraction = 0f;
+                
+                string envId = environmentParent != null ? environmentParent.name : "?";
+                Debug.Log($"<color=green>[{gameObject.name}] Goal {currentGoalIndex}/5 ({other.name}) collected! Env: {envId}, Reward: +{rewardAmount:F1}</color>");
+                
+                other.gameObject.SetActive(false);
+                
+                // Check if all 5 goals collected
+                if (currentGoalIndex >= 5)
+                {
+                    AddReward(2f);  // Completion bonus
+                    Debug.Log($"<color=lime>[{gameObject.name}] ALL 5 GOALS COMPLETED! Episode Success!</color>");
+                    EndEpisode();
+                    return;
+                }
+                else
+                {
+                    UpdateTargetGoal();  // Move to next goal
+                }
             }
             else
             {
-                // Update to next closest goal
-                UpdateTargetGoal();
+                // Wrong goal collected (out of order)
+                Debug.Log($"<color=yellow>[{gameObject.name}] Wrong goal! Expected {(currentGoalIndex < allGoals.Length ? allGoals[currentGoalIndex].name : "none")}, got {other.name}</color>");
+                AddReward(-0.2f);  // Small penalty for wrong order
             }
         }
-        if (other.TryGetComponent<Wall>(out Wall wall)) {
-            consecutiveRewards = 0;
-            AddReward(-1f); // Use AddReward for accumulation
+        
+        if (other.TryGetComponent<Wall>(out Wall wall))
+        {
+            AddReward(-1f);
             timeSinceLastInteraction = 0f;
             string envId = environmentParent != null ? environmentParent.name : "?";
-            Debug.Log($"<color=red>[{gameObject.name}] Wall hit! Env: {envId}, Penalty: -1, Goals collected: {goalsCollectedThisEpisode}/{totalGoals}</color>");
+            Debug.Log($"<color=red>[{gameObject.name}] Wall hit! Env: {envId}, Goals collected: {currentGoalIndex}/5</color>");
             EndEpisode();
         }
     }
@@ -323,11 +328,11 @@ public class DroneAgent : Agent
             if (Keyboard.current != null)
             {
                 if (Keyboard.current.upArrowKey.isPressed)
-                    discreteActionsOut[0] = 0; // Pitch up
+                    discreteActionsOut[0] = 0;
                 else if (Keyboard.current.downArrowKey.isPressed)
-                    discreteActionsOut[0] = 2; // Pitch down
+                    discreteActionsOut[0] = 2;
                 else
-                    discreteActionsOut[0] = 1; // Neutral (nothing)
+                    discreteActionsOut[0] = 1;
                 return;
             }
         }
@@ -338,30 +343,25 @@ public class DroneAgent : Agent
 
 #if ENABLE_LEGACY_INPUT_MANAGER
         if (Input.GetKey(KeyCode.UpArrow))
-            discreteActionsOut[0] = 0; // Pitch up
+            discreteActionsOut[0] = 0;
         else if (Input.GetKey(KeyCode.DownArrow))
-            discreteActionsOut[0] = 2; // Pitch down
+            discreteActionsOut[0] = 2;
         else
-            discreteActionsOut[0] = 1; // Neutral (nothing)
+            discreteActionsOut[0] = 1;
 #endif
     }
 
     void UpdateTargetGoal()
     {
-        targetGoal = null;
-        float minDistance = float.MaxValue;
-        
-        foreach (var goal in allGoals)
+        // Simple: just target the next goal in sequence
+        if (currentGoalIndex < allGoals.Length)
         {
-            if (goal != null && goal.gameObject.activeInHierarchy)
-            {
-                float distance = Vector3.Distance(transform.position, goal.position);
-                if (distance < minDistance)
-                {
-                    minDistance = distance;
-                    targetGoal = goal;
-                }
-            }
+            targetGoal = allGoals[currentGoalIndex];
+            Debug.Log($"<color=cyan>[{gameObject.name}] Next target: {targetGoal.name}</color>");
+        }
+        else
+        {
+            targetGoal = null;
         }
     }
 }
