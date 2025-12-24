@@ -47,3 +47,62 @@ Note: HUD variables are computed for display only; the underlying physics uses `
 ## Credits
 
 Base project derived from the original FlightSim project by [vazgriz](https://github.com/vazgriz/FlightSim). This fork adapts the simulator for simpler RC-style drone testing and learning.
+
+
+## pip list
+(venv_mlagents) PS D:\unity_stack\Fixed-wing-drone-simulator> pip list
+Package                 Version
+----------------------- ----------
+absl-py                 2.3.1     
+anyio                   4.12.0    
+attrs                   25.4.0    
+cattrs                  1.5.0
+certifi                 2025.11.12
+charset-normalizer      3.4.4
+click                   8.3.1
+cloudpickle             3.1.2
+colorama                0.4.6
+exceptiongroup          1.3.1
+filelock                3.20.1
+fsspec                  2025.12.0
+grpcio                  1.48.2
+gym                     0.26.2
+gym-notices             0.1.0
+h11                     0.16.0
+h5py                    3.15.1
+hf-xet                  1.2.0
+httpcore                1.0.9
+httpx                   0.28.1
+huggingface_hub         1.2.3
+idna                    3.11
+Jinja2                  3.1.6
+Markdown                3.10
+MarkupSafe              3.0.3
+mlagents                1.1.0
+mlagents-envs           1.1.0
+mpmath                  1.3.0
+networkx                3.4.2
+numpy                   1.23.5
+onnx                    1.15.0
+packaging               25.0
+PettingZoo              1.15.0
+pillow                  12.0.0
+pip                     23.0.1
+protobuf                3.20.3
+pypiwin32               223
+pywin32                 311
+PyYAML                  6.0.3
+requests                2.32.5
+setuptools              65.5.0
+shellingham             1.5.4
+six                     1.17.0
+sympy                   1.14.0
+tensorboard             2.20.0
+tensorboard-data-server 0.7.2
+torch                   2.0.0
+torchvision             0.15.1
+tqdm                    4.67.1
+typer-slim              0.20.1
+typing_extensions       4.15.0
+urllib3                 2.6.2
+Werkzeug                3.1.4
