@@ -50,6 +50,7 @@ Base project derived from the original FlightSim project by [vazgriz](https://gi
 
 
 ## pip list
+Python 3.10.11
 (venv_mlagents) PS D:\unity_stack\Fixed-wing-drone-simulator> pip list
 Package                 Version
 ----------------------- ----------
