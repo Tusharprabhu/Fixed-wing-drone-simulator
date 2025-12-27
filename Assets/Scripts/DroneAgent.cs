@@ -28,8 +28,8 @@ public class DroneAgent : Agent
     [Header("Goal Tracking")]
     private Transform targetGoal;
     private Transform[] allGoals;
-    private int currentGoalIndex = 0;  // Track which goal to collect next
-    private int totalGoals = 5;        // Fixed: always 5 goals
+    private int currentGoalIndex = 0;
+    private int totalGoals = 5;
     
     [Header("Training Area")]
     [SerializeField] private Transform trainingArea;
@@ -76,7 +76,7 @@ public class DroneAgent : Agent
         
         if (totalGoals != 5)
         {
-            Debug.LogWarning($"<color=orange>[{gameObject.name}] Expected 5 reward spheres but found {totalGoals}! Make sure there are exactly 5 spheres tagged 'Reward'</color>");
+            Debug.LogWarning($"<color=orange>[{gameObject.name}] Expected 5 reward spheres but found {totalGoals}! Make sure there are exactly 5 spheres named 'Sphere (1)' through 'Sphere (5)'</color>");
         }
     }
     
@@ -84,9 +84,10 @@ public class DroneAgent : Agent
     {
         if (trainingArea != null)
         {
+            // Find only the actual sphere objects (Sphere (1), Sphere (2), etc), not the parent container
             var rewardObjects = trainingArea.GetComponentsInChildren<Transform>(true)
-                .Where(t => t.CompareTag("Reward") && t != trainingArea)
-                .OrderBy(t => t.name)  // Sort by name: Sphere (1), Sphere (2), etc.
+                .Where(t => t.name.StartsWith("Sphere (") && t.name.Contains(")"))
+                .OrderBy(t => t.name)
                 .ToArray();
             
             allGoals = rewardObjects;
@@ -96,9 +97,13 @@ public class DroneAgent : Agent
         }
         else
         {
-            GameObject[] rewardObjects = GameObject.FindGameObjectsWithTag("Reward");
-            allGoals = rewardObjects.OrderBy(g => g.name).Select(g => g.transform).ToArray();
-            
+            // Fallback: find spheres globally
+            var allTransforms = FindObjectsByType<Transform>(FindObjectsSortMode.None);
+            allGoals = allTransforms
+                .Where(t => t.name.StartsWith("Sphere (") && t.name.Contains(")"))
+                .OrderBy(t => t.name)   // your own logical ordering
+                .ToArray();
+                
             totalGoals = allGoals.Length;
             Debug.LogWarning($"<color=orange>[{gameObject.name}] Using global reward search - found {totalGoals} spheres</color>");
         }
@@ -136,11 +141,11 @@ public class DroneAgent : Agent
         plane.ResetTo(worldStartPosition, startRotation, initialSpeed);
         rb.isKinematic = false;
         
-        currentGoalIndex = 0;  // Start from first goal
+        currentGoalIndex = 0;
         
         ReactivateAllGoals();
         RefreshGoals();
-        UpdateTargetGoal();  // Set first goal as target
+        UpdateTargetGoal();
         
         stuckTimer = 0f;
         timeSinceLastInteraction = 0f;
@@ -153,8 +158,9 @@ public class DroneAgent : Agent
     {
         if (trainingArea != null)
         {
+            // Find only actual sphere objects, not parent containers
             var allRewards = trainingArea.GetComponentsInChildren<Transform>(true)
-                .Where(t => t.CompareTag("Reward") && t != trainingArea);
+                .Where(t => t.name.StartsWith("Sphere (") && t.name.Contains(")"));
             
             foreach (var reward in allRewards)
             {
@@ -273,38 +279,49 @@ public class DroneAgent : Agent
     {
         if (other.CompareTag("Reward"))
         {
+            // Find which sphere this collider belongs to by checking parent hierarchy
+            Transform sphereTransform = other.transform;
+            while (sphereTransform != null && !sphereTransform.name.StartsWith("Sphere ("))
+            {
+                sphereTransform = sphereTransform.parent;
+            }
+            
+            if (sphereTransform == null)
+            {
+                Debug.LogWarning($"<color=orange>[{gameObject.name}] Could not find sphere parent for collider {other.name}</color>");
+                return;
+            }
+            
             // Check if this is the correct goal in sequence
-            if (allGoals != null && currentGoalIndex < allGoals.Length && other.transform == allGoals[currentGoalIndex])
+            if (allGoals != null && currentGoalIndex < allGoals.Length && sphereTransform == allGoals[currentGoalIndex])
             {
                 currentGoalIndex++;
                 
-                float rewardAmount = 1f + (currentGoalIndex - 1) * 0.1f;  // 1.0, 1.1, 1.2, 1.3, 1.4
+                float rewardAmount = 1f + (currentGoalIndex - 1) * 0.1f;
                 AddReward(rewardAmount);
                 timeSinceLastInteraction = 0f;
                 
                 string envId = environmentParent != null ? environmentParent.name : "?";
-                Debug.Log($"<color=green>[{gameObject.name}] Goal {currentGoalIndex}/5 ({other.name}) collected! Env: {envId}, Reward: +{rewardAmount:F1}</color>");
+                Debug.Log($"<color=green>[{gameObject.name}] Goal {currentGoalIndex}/5 ({sphereTransform.name}) collected! Env: {envId}, Reward: +{rewardAmount:F1}</color>");
                 
-                other.gameObject.SetActive(false);
+                sphereTransform.gameObject.SetActive(false);
                 
-                // Check if all 5 goals collected
                 if (currentGoalIndex >= 5)
                 {
-                    AddReward(2f);  // Completion bonus
+                    AddReward(2f);
                     Debug.Log($"<color=lime>[{gameObject.name}] ALL 5 GOALS COMPLETED! Episode Success!</color>");
                     EndEpisode();
                     return;
                 }
                 else
                 {
-                    UpdateTargetGoal();  // Move to next goal
+                    UpdateTargetGoal();
                 }
             }
             else
             {
-                // Wrong goal collected (out of order)
-                Debug.Log($"<color=yellow>[{gameObject.name}] Wrong goal! Expected {(currentGoalIndex < allGoals.Length ? allGoals[currentGoalIndex].name : "none")}, got {other.name}</color>");
-                AddReward(-0.2f);  // Small penalty for wrong order
+                Debug.Log($"<color=yellow>[{gameObject.name}] Wrong goal! Expected {(currentGoalIndex < allGoals.Length ? allGoals[currentGoalIndex].name : "none")}, got {sphereTransform.name}</color>");
+                AddReward(-0.2f);
             }
         }
         
@@ -353,7 +370,6 @@ public class DroneAgent : Agent
 
     void UpdateTargetGoal()
     {
-        // Simple: just target the next goal in sequence
         if (currentGoalIndex < allGoals.Length)
         {
             targetGoal = allGoals[currentGoalIndex];

@@ -1,14 +1,6 @@
 {
   "dependencies": {
-    "com.coplaydev.unity-mcp": {
-      "version": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity",
-      "depth": 0,
-      "source": "git",
-      "dependencies": {
-        "com.unity.nuget.newtonsoft-json": "3.0.2"
-      },
-      "hash": "edd7817d4010032b47e6874c165c8d0b37680407"
-    },
+
     "com.unity.ai.assistant": {
       "version": "1.0.0-pre.12",
       "depth": 0,
@@ -150,12 +142,12 @@
       "depth": 0,
       "source": "git",
       "dependencies": {
-        "com.unity.ai.inference": "2.2.1",
+        "com.unity.ai.inference": "2.4.1",
         "com.unity.modules.imageconversion": "1.0.0",
         "com.unity.modules.jsonserialize": "1.0.0",
         "com.unity.modules.physics": "1.0.0"
       },
-      "hash": "f248e982e521442c4f4e59dc56b7aea5c3505095"
+      "hash": "d24a86590d7c1532c760b14845c12694a0dbf217"
     },
     "com.unity.multiplayer.center": {
       "version": "1.0.1",

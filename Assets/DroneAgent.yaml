@@ -1,34 +1,34 @@
-# Simple PPO configuration for DroneAgent
-# Start with conservative hyperparameters for stable, accurate learning
-# Increase complexity only after this works well
-
 behaviors:
   DroneAgent:
     trainer_type: ppo
-    
+
     hyperparameters:
-      batch_size: 1024          # Smaller batches for faster feedback
-      buffer_size: 10240        # 10x batch_size
-      learning_rate: 3.0e-4     # Conservative learning rate
-      beta: 5.0e-3              # Entropy bonus (encourage exploration)
-      epsilon: 0.2              # PPO clip range
-      lambd: 0.95               # GAE lambda
-      num_epoch: 3              # Epochs per update
+      batch_size: 1024
+      buffer_size: 10240
+      learning_rate: 3.0e-4
+      beta: 5.0e-3
+      epsilon: 0.2
+      lambd: 0.95
+      num_epoch: 3
       learning_rate_schedule: linear
-    
+
     network_settings:
-      normalize: true           # Normalize observations
-      hidden_units: 128         # Simpler network (was 256)
-      num_layers: 2             # 2 hidden layers
+      normalize: true
+      hidden_units: 128
+      num_layers: 2
       vis_encode_type: simple
-    
+
     reward_signals:
       extrinsic:
-        gamma: 0.99             # Discount factor
+        gamma: 0.99
         strength: 1.0
-      
-    max_steps: 5000000          # 5M steps for thorough training
-    time_horizon: 128           # Episode chunk size
-    summary_freq: 5000          # TensorBoard updates every 5K steps
-    keep_checkpoints: 10        # Keep 10 checkpoints
-    checkpoint_interval: 50000000  # Set very high to effectively disable (avoid div by zero)
+
+    behavioral_cloning:
+      demo_path: Assets/RECORDING/rendpitch.demo
+      strength: 0.5          # how strongly agent imitates
+      steps: 200000          # BC fades after this
+
+    max_steps: 5000000
+    time_horizon: 128
+    summary_freq: 5000
+    keep_checkpoints: 10

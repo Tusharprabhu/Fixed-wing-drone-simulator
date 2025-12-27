@@ -2,10 +2,10 @@
   "name": "Unity ML-Agents MCP Server",
   "version": "1.0.0",
   "description": "MCP server for monitoring and controlling Unity ML-Agents drone training",
-  "pythonExecutable": "D:/unity_stack/Fixed-wing-drone-simulator/.venv/Scripts/python.exe",
-  "projectRoot": "D:/unity_stack/Fixed-wing-drone-simulator",
+  "pythonExecutable": "C:\\Users\\Om\\AppData\\Local\\Programs\\Python\\Python310\\python.exe",
+  "projectRoot": "C:\\Users\\Om\\Documents\\ws\\Fixed-wing-drone-simulator",
   "autoStart": true,
-  "port": 6400,
+  "port": 8080,
   "tools": [
     {
       "name": "check_training_status",
