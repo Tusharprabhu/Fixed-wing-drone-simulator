@@ -234,6 +234,18 @@ public class DroneAgent : Agent
         Vector3 localVelocity = rb.linearVelocity;
         sensor.AddObservation(localVelocity);
         
+        // Roll-related observations
+        if (plane != null)
+        {
+            sensor.AddObservation(plane.EffectiveInput.z);        // commanded roll [-1,1]
+            sensor.AddObservation(plane.LocalAngularVelocity.z);  // roll rate (rad/s)
+        }
+        else
+        {
+            sensor.AddObservation(0f);
+            sensor.AddObservation(0f);
+        }
+        
         if (targetGoal != null)
         {
             Vector3 directionToGoal = (targetGoal.position - transform.position).normalized;
@@ -252,14 +264,19 @@ public class DroneAgent : Agent
     public override void OnActionReceived(ActionBuffers actions)
     {
         int pitchAction = actions.DiscreteActions[0];
+        int rollAction = actions.DiscreteActions.Length > 1 ? actions.DiscreteActions[1] : 1;
 
         float pitch = 0f;
         if (pitchAction == 0) pitch = 1f;
         else if (pitchAction == 2) pitch = -1f;
 
+        float roll = 0f;
+        if (rollAction == 0) roll = 1f;      // roll left
+        else if (rollAction == 2) roll = -1f; // roll right
+
         if (plane != null)
         {
-            plane.SetControlInput(new Vector3(pitch, 0f, 0f));
+            plane.SetControlInput(new Vector3(pitch, 0f, roll));
             plane.SetThrottleInput(1f);
         }
         
@@ -344,12 +361,24 @@ public class DroneAgent : Agent
         {
             if (Keyboard.current != null)
             {
+                // Pitch (up/down arrow)
                 if (Keyboard.current.upArrowKey.isPressed)
                     discreteActionsOut[0] = 0;
                 else if (Keyboard.current.downArrowKey.isPressed)
                     discreteActionsOut[0] = 2;
                 else
                     discreteActionsOut[0] = 1;
+                
+                // Roll (left/right arrow)
+                if (discreteActionsOut.Length > 1)
+                {
+                    if (Keyboard.current.leftArrowKey.isPressed)
+                        discreteActionsOut[1] = 0;
+                    else if (Keyboard.current.rightArrowKey.isPressed)
+                        discreteActionsOut[1] = 2;
+                    else
+                        discreteActionsOut[1] = 1;
+                }
                 return;
             }
         }
@@ -359,12 +388,24 @@ public class DroneAgent : Agent
 #endif
 
 #if ENABLE_LEGACY_INPUT_MANAGER
+        // Pitch
         if (Input.GetKey(KeyCode.UpArrow))
             discreteActionsOut[0] = 0;
         else if (Input.GetKey(KeyCode.DownArrow))
             discreteActionsOut[0] = 2;
         else
             discreteActionsOut[0] = 1;
+        
+        // Roll
+        if (discreteActionsOut.Length > 1)
+        {
+            if (Input.GetKey(KeyCode.LeftArrow))
+                discreteActionsOut[1] = 0;
+            else if (Input.GetKey(KeyCode.RightArrow))
+                discreteActionsOut[1] = 2;
+            else
+                discreteActionsOut[1] = 1;
+        }
 #endif
     }
 

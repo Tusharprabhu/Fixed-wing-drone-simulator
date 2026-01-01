@@ -1700,17 +1700,36 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Model
       value: 
-      objectReference: {fileID: 5022602860645237092, guid: d21e5e3b3a9e0ac4a9a5e59f6919b2dd,
-        type: 3}
+      objectReference: {fileID: 0}
     - target: {fileID: 3920637740997388209, guid: 9cf19271bd702124f9f135722c6cc65f,
         type: 3}
       propertyPath: m_BehaviorType
-      value: 2
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3920637740997388209, guid: 9cf19271bd702124f9f135722c6cc65f,
         type: 3}
       propertyPath: m_UseChildSensors
       value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3920637740997388209, guid: 9cf19271bd702124f9f135722c6cc65f,
+        type: 3}
+      propertyPath: m_BrainParameters.VectorActionSize.Array.size
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3920637740997388209, guid: 9cf19271bd702124f9f135722c6cc65f,
+        type: 3}
+      propertyPath: 'm_BrainParameters.VectorActionSize.Array.data[1]'
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 3920637740997388209, guid: 9cf19271bd702124f9f135722c6cc65f,
+        type: 3}
+      propertyPath: m_BrainParameters.m_ActionSpec.BranchSizes.Array.size
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3920637740997388209, guid: 9cf19271bd702124f9f135722c6cc65f,
+        type: 3}
+      propertyPath: 'm_BrainParameters.m_ActionSpec.BranchSizes.Array.data[1]'
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 3921932377641596136, guid: 9cf19271bd702124f9f135722c6cc65f,
         type: 3}
@@ -1801,6 +1820,16 @@ PrefabInstance:
         type: 3}
       propertyPath: m_LocalPosition.z
       value: -4.58
+      objectReference: {fileID: 0}
+    - target: {fileID: 7356168015485764456, guid: 9cf19271bd702124f9f135722c6cc65f,
+        type: 3}
+      propertyPath: Record
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7356168015485764456, guid: 9cf19271bd702124f9f135722c6cc65f,
+        type: 3}
+      propertyPath: DemonstrationName
+      value: rendpitch
       objectReference: {fileID: 0}
     - target: {fileID: 8990729840779861703, guid: 9cf19271bd702124f9f135722c6cc65f,
         type: 3}
