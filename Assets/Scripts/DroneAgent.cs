@@ -31,9 +31,19 @@ public class DroneAgent : Agent
     private int currentGoalIndex = 0;
     private int totalGoals = 5;
     
+    [Header("Sphere Position Randomization")]
+    [Tooltip("Randomize sphere X position each episode")]
+    [SerializeField] private bool randomizeSphereX = true;
+    [SerializeField] private float sphereXMin = -10f;
+    [SerializeField] private float sphereXMax = 30f;
+    [Tooltip("Randomize sphere Y position each episode")]
+    [SerializeField] private bool randomizeSphereY = true;
+    [SerializeField] private float sphereYMin = 10f;
+    [SerializeField] private float sphereYMax = 30f;
+    
     [Header("Training Area")]
     [SerializeField] private Transform trainingArea;
-    [SerializeField] private float maxDistanceFromStart = 500f;
+    [SerializeField] private float maxDistanceFromStart = 1500f;
 
     [Header("Stuck Detection")]
     [SerializeField] private float stuckSpeedThreshold = 2f;
@@ -74,9 +84,13 @@ public class DroneAgent : Agent
         
         RefreshGoals();
         
-        if (totalGoals != 5)
+        if (totalGoals > 0)
         {
-            Debug.LogWarning($"<color=orange>[{gameObject.name}] Expected 5 reward spheres but found {totalGoals}! Make sure there are exactly 5 spheres named 'Sphere (1)' through 'Sphere (5)'</color>");
+            Debug.Log($"<color=cyan>[{gameObject.name}] Initialized with {totalGoals} reward spheres for dynamic scoring</color>");
+        }
+        else
+        {
+            Debug.LogWarning($"<color=orange>[{gameObject.name}] No reward spheres found! Make sure spheres are named 'Sphere (1)', 'Sphere (2)', etc.</color>");
         }
     }
     
@@ -87,7 +101,11 @@ public class DroneAgent : Agent
             // Find only the actual sphere objects (Sphere (1), Sphere (2), etc), not the parent container
             var rewardObjects = trainingArea.GetComponentsInChildren<Transform>(true)
                 .Where(t => t.name.StartsWith("Sphere (") && t.name.Contains(")"))
-                .OrderBy(t => t.name)
+                .OrderBy(t => {
+                    // Extract number from sphere name for proper numerical ordering
+                    string numberStr = t.name.Substring(8, t.name.Length - 9); // Extract number between "Sphere (" and ")"
+                    return int.TryParse(numberStr, out int number) ? number : 0;
+                })
                 .ToArray();
             
             allGoals = rewardObjects;
@@ -101,7 +119,11 @@ public class DroneAgent : Agent
             var allTransforms = FindObjectsByType<Transform>(FindObjectsSortMode.None);
             allGoals = allTransforms
                 .Where(t => t.name.StartsWith("Sphere (") && t.name.Contains(")"))
-                .OrderBy(t => t.name)   // your own logical ordering
+                .OrderBy(t => {
+                    // Extract number from sphere name for proper numerical ordering
+                    string numberStr = t.name.Substring(8, t.name.Length - 9); // Extract number between "Sphere (" and ")"
+                    return int.TryParse(numberStr, out int number) ? number : 0;
+                })
                 .ToArray();
                 
             totalGoals = allGoals.Length;
@@ -146,6 +168,8 @@ public class DroneAgent : Agent
         ReactivateAllGoals();
         RefreshGoals();
         UpdateTargetGoal();
+        // Enforce runtime max distance to 1500m as requested
+        maxDistanceFromStart = 1500f;
         
         stuckTimer = 0f;
         timeSinceLastInteraction = 0f;
@@ -160,14 +184,30 @@ public class DroneAgent : Agent
         {
             // Find only actual sphere objects, not parent containers
             var allRewards = trainingArea.GetComponentsInChildren<Transform>(true)
-                .Where(t => t.name.StartsWith("Sphere (") && t.name.Contains(")"));
+                .Where(t => t.name.StartsWith("Sphere (") && t.name.Contains(")"))
+                .OrderBy(t => {
+                    // Extract number from sphere name for proper numerical ordering
+                    string numberStr = t.name.Substring(8, t.name.Length - 9); // Extract number between "Sphere (" and ")"
+                    return int.TryParse(numberStr, out int number) ? number : 0;
+                });
             
             foreach (var reward in allRewards)
             {
                 Vector3 localPos = reward.localPosition;
-                localPos.y = Random.Range(10f, 30f);
-                reward.localPosition = localPos;
                 
+                // Randomize X position if enabled
+                if (randomizeSphereX)
+                {
+                    localPos.x = Random.Range(sphereXMin, sphereXMax);
+                }
+                
+                // Randomize Y position if enabled
+                if (randomizeSphereY)
+                {
+                    localPos.y = Random.Range(sphereYMin, sphereYMax);
+                }
+                
+                reward.localPosition = localPos;
                 reward.gameObject.SetActive(true);
             }
         }
@@ -189,7 +229,7 @@ public class DroneAgent : Agent
         float distanceFromStart = Vector3.Distance(transform.position, episodeStartPosition);
         if (distanceFromStart > maxDistanceFromStart)
         {
-            Debug.Log($"<color=red>[{gameObject.name}] Out of bounds ({distanceFromStart:F0}m) - ending episode</color>");
+            Debug.Log($"<color=red>[{gameObject.name}] Out of bounds ({distanceFromStart:F0}m > {maxDistanceFromStart:F0}m) - ending episode</color>");
             AddReward(-0.5f);
             EndEpisode();
             return;
@@ -265,18 +305,23 @@ public class DroneAgent : Agent
     {
         int pitchAction = actions.DiscreteActions[0];
         int rollAction = actions.DiscreteActions.Length > 1 ? actions.DiscreteActions[1] : 1;
+        int yawAction = actions.DiscreteActions.Length > 2 ? actions.DiscreteActions[2] : 1;
 
         float pitch = 0f;
-        if (pitchAction == 0) pitch = 1f;
-        else if (pitchAction == 2) pitch = -1f;
+        if (pitchAction == 0) pitch = 1f; // Up arrow pitches up
+        else if (pitchAction == 2) pitch = -1f; // Down arrow pitches down
 
         float roll = 0f;
         if (rollAction == 0) roll = 1f;      // roll left
         else if (rollAction == 2) roll = -1f; // roll right
 
+        float yaw = 0f;
+        if (yawAction == 0) yaw = -1f;      // Q key yaws left
+        else if (yawAction == 2) yaw = 1f;  // E key yaws right
+
         if (plane != null)
         {
-            plane.SetControlInput(new Vector3(pitch, 0f, roll));
+            plane.SetControlInput(new Vector3(pitch, yaw, roll));
             plane.SetThrottleInput(1f);
         }
         
@@ -312,21 +357,22 @@ public class DroneAgent : Agent
             // Check if this is the correct goal in sequence
             if (allGoals != null && currentGoalIndex < allGoals.Length && sphereTransform == allGoals[currentGoalIndex])
             {
-                currentGoalIndex++;
+                float rewardAmount = 1f + currentGoalIndex * 0.1f; // Calculate reward BEFORE incrementing
+                currentGoalIndex++; // Increment after reward calculation
                 
-                float rewardAmount = 1f + (currentGoalIndex - 1) * 0.1f;
                 AddReward(rewardAmount);
                 timeSinceLastInteraction = 0f;
                 
                 string envId = environmentParent != null ? environmentParent.name : "?";
-                Debug.Log($"<color=green>[{gameObject.name}] Goal {currentGoalIndex}/5 ({sphereTransform.name}) collected! Env: {envId}, Reward: +{rewardAmount:F1}</color>");
+                Debug.Log($"<color=green>[{gameObject.name}] Goal {currentGoalIndex}/{totalGoals} ({sphereTransform.name}) collected! Env: {envId}, Reward: +{rewardAmount:F1}</color>");
                 
                 sphereTransform.gameObject.SetActive(false);
                 
-                if (currentGoalIndex >= 5)
+                if (currentGoalIndex >= totalGoals)
                 {
-                    AddReward(2f);
-                    Debug.Log($"<color=lime>[{gameObject.name}] ALL 5 GOALS COMPLETED! Episode Success!</color>");
+                    float completionBonus = 5f; // Base completion bonus
+                    AddReward(completionBonus);
+                    Debug.Log($"<color=lime>[{gameObject.name}] ALL {totalGoals} GOALS COMPLETED! Episode Success! Bonus: +{completionBonus:F1}</color>");
                     EndEpisode();
                     return;
                 }
@@ -347,7 +393,7 @@ public class DroneAgent : Agent
             AddReward(-1f);
             timeSinceLastInteraction = 0f;
             string envId = environmentParent != null ? environmentParent.name : "?";
-            Debug.Log($"<color=red>[{gameObject.name}] Wall hit! Env: {envId}, Goals collected: {currentGoalIndex}/5</color>");
+            Debug.Log($"<color=red>[{gameObject.name}] Wall hit! Env: {envId}, Goals collected: {currentGoalIndex}/{totalGoals}</color>");
             EndEpisode();
         }
     }
@@ -361,11 +407,11 @@ public class DroneAgent : Agent
         {
             if (Keyboard.current != null)
             {
-                // Pitch (up/down arrow)
+                // Pitch (up/down arrow) - inverted
                 if (Keyboard.current.upArrowKey.isPressed)
-                    discreteActionsOut[0] = 0;
+                    discreteActionsOut[0] = 2; // Up arrow pitches down
                 else if (Keyboard.current.downArrowKey.isPressed)
-                    discreteActionsOut[0] = 2;
+                    discreteActionsOut[0] = 0; // Down arrow pitches up
                 else
                     discreteActionsOut[0] = 1;
                 
@@ -379,6 +425,17 @@ public class DroneAgent : Agent
                     else
                         discreteActionsOut[1] = 1;
                 }
+                
+                // Yaw (Q/E keys)
+                if (discreteActionsOut.Length > 2)
+                {
+                    if (Keyboard.current.qKey.isPressed)
+                        discreteActionsOut[2] = 0; // Q key yaws left
+                    else if (Keyboard.current.eKey.isPressed)
+                        discreteActionsOut[2] = 2; // E key yaws right
+                    else
+                        discreteActionsOut[2] = 1;
+                }
                 return;
             }
         }
@@ -388,11 +445,11 @@ public class DroneAgent : Agent
 #endif
 
 #if ENABLE_LEGACY_INPUT_MANAGER
-        // Pitch
+        // Pitch - inverted
         if (Input.GetKey(KeyCode.UpArrow))
-            discreteActionsOut[0] = 0;
+            discreteActionsOut[0] = 2; // Up arrow pitches down
         else if (Input.GetKey(KeyCode.DownArrow))
-            discreteActionsOut[0] = 2;
+            discreteActionsOut[0] = 0; // Down arrow pitches up
         else
             discreteActionsOut[0] = 1;
         
@@ -405,6 +462,17 @@ public class DroneAgent : Agent
                 discreteActionsOut[1] = 2;
             else
                 discreteActionsOut[1] = 1;
+        }
+        
+        // Yaw
+        if (discreteActionsOut.Length > 2)
+        {
+            if (Input.GetKey(KeyCode.Q))
+                discreteActionsOut[2] = 0; // Q key yaws left
+            else if (Input.GetKey(KeyCode.E))
+                discreteActionsOut[2] = 2; // E key yaws right
+            else
+                discreteActionsOut[2] = 1;
         }
 #endif
     }
@@ -421,4 +489,4 @@ public class DroneAgent : Agent
             targetGoal = null;
         }
     }
-}
+} 

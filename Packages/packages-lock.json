@@ -1,17 +1,13 @@
 {
   "dependencies": {
-
-    "com.unity.ai.assistant": {
-      "version": "1.0.0-pre.12",
+    "com.coplaydev.unity-mcp": {
+      "version": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity",
       "depth": 0,
-      "source": "registry",
+      "source": "git",
       "dependencies": {
-        "com.unity.ai.toolkit": "1.0.0-pre.18",
-        "com.unity.serialization": "3.1.1",
-        "com.unity.nuget.newtonsoft-json": "3.2.1",
-        "com.unity.modules.unitywebrequest": "1.0.0"
+        "com.unity.nuget.newtonsoft-json": "3.0.2"
       },
-      "url": "https://packages.unity.com"
+      "hash": "85198a07ea6cc0bb07fb6c5453d10a3b2cb0db19"
     },
     "com.unity.ai.generators": {
       "version": "1.0.0-pre.20",
@@ -169,16 +165,6 @@
       "depth": 1,
       "source": "registry",
       "dependencies": {},
-      "url": "https://packages.unity.com"
-    },
-    "com.unity.serialization": {
-      "version": "3.1.3",
-      "depth": 1,
-      "source": "registry",
-      "dependencies": {
-        "com.unity.burst": "1.7.2",
-        "com.unity.collections": "2.4.2"
-      },
       "url": "https://packages.unity.com"
     },
     "com.unity.test-framework": {

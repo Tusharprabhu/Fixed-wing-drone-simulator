@@ -24,12 +24,11 @@ behaviors:
         strength: 1.0
 
     behavioral_cloning:
-      # NOTE: Re-record demo with roll inputs and update path if using BC with roll
-      demo_path: Assets/RECORDING/rendpitch.demo
-      strength: 0.5          # how strongly agent imitates
-      steps: 200000          # BC fades after this
+      demo_path: Assets/RECORDING/allmove_2.demo
+      strength: 0.5
+      steps: 500000
 
-    max_steps: 5000000
+    max_steps: 10000000
     time_horizon: 128
     summary_freq: 5000
     keep_checkpoints: 10

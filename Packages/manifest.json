@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "com.unity.ai.assistant": "1.0.0-pre.12",
+    "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity",
     "com.unity.ai.generators": "1.0.0-pre.20",
     "com.unity.ai.inference": "2.4.1",
     "com.unity.ai.navigation": "2.0.9",
