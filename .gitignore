@@ -136,7 +136,6 @@ __pycache__/
 *$py.class
 
 # Results and models
-results/
 models/
 
 # VS Code
