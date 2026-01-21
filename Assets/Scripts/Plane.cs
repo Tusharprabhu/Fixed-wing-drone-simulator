@@ -57,6 +57,12 @@ public class Plane : MonoBehaviour {
     [SerializeField]
     float stabilityDamping = 1.0f;              // Overall stability damping
 
+    [Header("Glide Performance")]
+    [SerializeField]
+    float stallWarningThreshold = 0.7f;         // Lift/Weight ratio below which stall warning triggers
+    [SerializeField]
+    float minLiftSpeed = 5f;                    // Minimum speed for lift generation (m/s)
+
     [Header("Misc")]
     [SerializeField]
     List<Collider> landingGear;
@@ -83,6 +89,12 @@ public class Plane : MonoBehaviour {
     Vector3 lastGForceDisplay;
     PhysicsMaterial landingGearDefaultMaterial;
 
+    // Glide metrics tracking
+    float currentLiftMagnitude;
+    float currentDragMagnitude;
+    Vector3 lastWorldLiftForce;
+    Vector3 lastInducedDragForce;
+
     public bool Dead { get; private set; }
 
     public Rigidbody Rigidbody { get; private set; }
@@ -96,6 +108,14 @@ public class Plane : MonoBehaviour {
     public float AngleOfAttackYaw { get; private set; }
     public float SideslipAngle { get; private set; }  // Beta - sideways sliding angle
 
+    // Glide performance properties
+    public float LiftToDragRatio { get; private set; }    // L/D ratio - higher = better glide
+    public float SinkRate { get; private set; }           // Vertical descent rate (m/s, positive = descending)
+    public float VerticalLiftComponent { get; private set; } // Vertical lift force (N)
+    public float RequiredLiftForLevel { get; private set; } // Lift needed to maintain altitude (N)
+    public bool IsStalling { get; private set; }          // True when lift insufficient for level flight
+    public float BankAngle { get; private set; }          // Current roll angle in degrees (-180 to 180)
+
     // Initialize references, store landing gear default material and set initial linear velocity
     void Start() {
         animation = GetComponent<PlaneAnimation>();
@@ -106,6 +126,13 @@ public class Plane : MonoBehaviour {
         }
 
         Rigidbody.linearVelocity = Rigidbody.rotation * new Vector3(0, 0, initialSpeed);
+    }
+
+    /// <summary>
+    /// Normalize an angle from 0-360 range to -180 to +180 range
+    /// </summary>
+    static float NormalizeAngle(float angle) {
+        return angle > 180f ? angle - 360f : angle;
     }
 
     // Set throttle input from player/controller. Input is ignored if plane is dead.
@@ -280,8 +307,7 @@ public class Plane : MonoBehaviour {
     
     // AOA is just the pitch angle - simple and direct
     float GetAOAForDisplay() {
-        Vector3 eulerAngles = transform.eulerAngles;
-        float pitchAngle = eulerAngles.x > 180f ? eulerAngles.x - 360f : eulerAngles.x;
+        float pitchAngle = NormalizeAngle(transform.eulerAngles.x);
         // Invert sign for display: user wants positive to become negative and vice-versa.
         // This affects HUD/console display only and does not modify physics calculations.
         return -pitchAngle;
@@ -387,7 +413,8 @@ public class Plane : MonoBehaviour {
     }
 
     // Calculate lift (and induced drag) for a given angle, axis and lift curves; returns force in local space
-    Vector3 CalculateLift(float angleOfAttack, Vector3 rightAxis, float liftPower, AnimationCurve aoaCurve, AnimationCurve inducedDragCurve) {
+    // LEGACY METHOD - kept for rudder lift which still uses local space
+    Vector3 CalculateLiftLocal(float angleOfAttack, Vector3 rightAxis, float liftPower, AnimationCurve aoaCurve, AnimationCurve inducedDragCurve) {
         var liftVelocity = Vector3.ProjectOnPlane(LocalVelocity, rightAxis);    //project velocity onto YZ plane
         var v2 = liftVelocity.sqrMagnitude;                                     //square of velocity
 
@@ -408,28 +435,115 @@ public class Plane : MonoBehaviour {
         return lift + inducedDrag;
     }
 
+    /// <summary>
+    /// Calculate wing lift using world-space cross-product method.
+    /// Lift is always perpendicular to BOTH the wing surface AND the relative wind.
+    /// This naturally handles bank angles:
+    /// - Level flight (0° roll): lift purely vertical (opposes gravity)
+    /// - Banked turn (45°): lift tilted (reduced vertical component, aircraft descends without AOA increase)
+    /// - Knife edge (90°): lift horizontal only (aircraft falls under gravity)
+    /// - Inverted (180°): lift points downward (requires negative AOA to fly)
+    /// </summary>
+    /// <returns>Tuple of (worldLiftForce, localInducedDrag)</returns>
+    (Vector3 worldLift, Vector3 localInducedDrag) CalculateWingLiftWorldSpace() {
+        // Get world-space velocity (airflow relative to aircraft)
+        Vector3 worldVelocity = Velocity;
+        float speedSqr = worldVelocity.sqrMagnitude;
+        
+        // No lift at very low speeds
+        if (speedSqr < minLiftSpeed * minLiftSpeed) {
+            return (Vector3.zero, Vector3.zero);
+        }
+        
+        // Get the wing's right axis in world space
+        Vector3 wingRight = transform.right;
+        
+        // Project velocity onto plane perpendicular to wing (remove spanwise component)
+        Vector3 liftVelocity = Vector3.ProjectOnPlane(worldVelocity, wingRight);
+        float liftSpeedSqr = liftVelocity.sqrMagnitude;
+        
+        if (liftSpeedSqr < 0.01f) {
+            return (Vector3.zero, Vector3.zero);
+        }
+        
+        // Calculate lift coefficient from AOA curve
+        float liftCoefficient = liftAOACurve.Evaluate(AngleOfAttack * Mathf.Rad2Deg);
+        
+        // Lift magnitude: L = 0.5 * rho * v^2 * S * Cl (simplified: v^2 * Cl * liftPower)
+        float liftMagnitude = liftSpeedSqr * liftCoefficient * liftPower;
+        
+        // CRITICAL: Cross product gives lift direction perpendicular to both velocity AND wing
+        // This automatically tilts lift based on bank angle!
+        Vector3 liftDirection = Vector3.Cross(liftVelocity.normalized, wingRight).normalized;
+        
+        // Handle edge case where cross product is zero (velocity parallel to wing)
+        if (liftDirection.sqrMagnitude < 0.01f) {
+            liftDirection = transform.up; // Fallback to aircraft up
+        }
+        
+        Vector3 worldLift = liftDirection * liftMagnitude;
+        
+        // Clamp lift force to prevent physics explosion
+        if (worldLift.magnitude > 500f) {
+            worldLift = worldLift.normalized * 500f;
+        }
+        
+        // Induced drag stays in LOCAL body frame (opposes motion relative to aircraft structure)
+        // D_induced = Cl^2 * v^2 * k (drag increases with square of lift coefficient)
+        float dragCoefficient = liftCoefficient * liftCoefficient;
+        Vector3 localDragDirection = -LocalVelocity.normalized;
+        Vector3 localInducedDrag = localDragDirection * liftSpeedSqr * dragCoefficient * 
+                                   this.inducedDrag * inducedDragCurve.Evaluate(Mathf.Max(0, LocalVelocity.z));
+        
+        // Clamp induced drag
+        if (localInducedDrag.magnitude > 200f) {
+            localInducedDrag = localInducedDrag.normalized * 200f;
+        }
+        
+        return (worldLift, localInducedDrag);
+    }
+
     // Compute and apply lift for wings and rudder (yaw), skipping at very low speeds
+    // UPDATED: Wing lift now uses world-space cross-product for realistic bank behavior
     void UpdateLift() {
         if (LocalVelocity.sqrMagnitude < 1f) return;
 
-        var liftForce = CalculateLift(
-            AngleOfAttack, Vector3.right,
-            liftPower,
-            liftAOACurve,
-            inducedDragCurve
-        );
+        // WING LIFT - World space cross-product method
+        // Automatically handles bank angle: tilted wings = tilted lift vector
+        var (worldLift, localInducedDrag) = CalculateWingLiftWorldSpace();
+        
+        // Store for metrics calculation
+        lastWorldLiftForce = worldLift;
+        lastInducedDragForce = localInducedDrag;
+        currentLiftMagnitude = worldLift.magnitude;
 
-        var yawForce = CalculateLift(AngleOfAttackYaw, Vector3.up, rudderPower, rudderAOACurve, rudderInducedDragCurve);
+        // RUDDER LIFT - Still uses local space (yaw forces don't need world decomposition)
+        var yawForce = CalculateLiftLocal(AngleOfAttackYaw, Vector3.up, rudderPower, rudderAOACurve, rudderInducedDragCurve);
 
-        // Clamp lift forces to prevent physics explosion
-        if (liftForce.magnitude > 500f) {
-            liftForce = liftForce.normalized * 500f;
-        }
+        // Clamp rudder force
         if (yawForce.magnitude > 200f) {
             yawForce = yawForce.normalized * 200f;
         }
 
-        Rigidbody.AddRelativeForce(liftForce);
+        // Apply wing lift in WORLD SPACE - critical for bank angle behavior!
+        // When banked, lift vector tilts with the aircraft:
+        // - At 0° bank: lift is vertical (full gravity opposition)
+        // - At 45° bank: lift is tilted 45° (only 70% vertical, aircraft descends)
+        // - At 90° bank: lift is horizontal (zero gravity opposition, aircraft falls)
+        Rigidbody.AddForce(worldLift, ForceMode.Force);
+        
+        // DEBUG: Log lift forces
+        if (Time.frameCount % 60 == 0) { // Log once per second (at 60 FPS)
+            float liftAngleFromHorizontal = Mathf.Asin(worldLift.y / (worldLift.magnitude + 0.01f)) * Mathf.Rad2Deg;
+            Debug.Log($"[LIFT] Magnitude: {worldLift.magnitude:F1}N, Y-component: {worldLift.y:F1}N, " +
+                      $"Lift angle: {liftAngleFromHorizontal:F1}°, Speed: {Velocity.magnitude:F1}m/s, " +
+                      $"AOA: {AngleOfAttack * Mathf.Rad2Deg:F1}°, Bank: {BankAngle:F1}°");
+        }
+        
+        // Apply induced drag in LOCAL space (opposes aircraft-relative motion)
+        Rigidbody.AddRelativeForce(localInducedDrag);
+        
+        // Apply rudder force in local space
         Rigidbody.AddRelativeForce(yawForce);
     }
 
@@ -438,17 +552,6 @@ public class Plane : MonoBehaviour {
         var av = LocalAngularVelocity;
         var drag = av.sqrMagnitude * -av.normalized;    //squared, opposite direction of angular velocity
         Rigidbody.AddRelativeTorque(Vector3.Scale(drag, angularDrag), ForceMode.Acceleration);  //ignore rigidbody mass
-    }
-
-    // Estimate a G-force vector from angular velocity and velocity (auxiliary calculation)
-    Vector3 CalculateGForce(Vector3 angularVelocity, Vector3 velocity) {
-        //estiamte G Force from angular velocity and velocity
-        //Velocity = AngularVelocity * Radius
-        //G = Velocity^2 / R
-        //G = (Velocity * AngularVelocity * Radius) / Radius
-        //G = Velocity * AngularVelocity
-        //G = V cross A
-        return Vector3.Cross(angularVelocity, velocity);
     }
 
     // Compute a small change (clamped by acceleration * dt) to move angular velocity toward target
@@ -463,7 +566,15 @@ public class Plane : MonoBehaviour {
         var speed = Mathf.Max(0, LocalVelocity.z);
         var steeringPower = steeringCurve.Evaluate(speed);
 
-        var targetAV = Vector3.Scale(controlInput, turnSpeed * steeringPower);
+        // Asymmetric pitch: pitch up = 1.5x, pitch down = 0.75x
+        float pitchMultiplier = controlInput.x > 0f ? 0.75f : 1.5f;
+        float pitchTargetAV = controlInput.x * turnSpeed.x * steeringPower * pitchMultiplier;
+        
+        var targetAV = new Vector3(
+            pitchTargetAV,                                    // Pitch (asymmetric)
+            controlInput.y * turnSpeed.y * steeringPower,    // Yaw (symmetric)
+            controlInput.z * turnSpeed.z * steeringPower     // Roll (symmetric)
+        );
         var av = LocalAngularVelocity * Mathf.Rad2Deg;
 
         // Calculate basic steering corrections for pitch and roll
@@ -491,6 +602,44 @@ public class Plane : MonoBehaviour {
         );
     }
     
+    /// <summary>
+    /// Calculate glide performance metrics based on current flight state.
+    /// Updates: LiftToDragRatio, SinkRate, VerticalLiftComponent, IsStalling, BankAngle
+    /// </summary>
+    void CalculateGlideMetrics() {
+        // Calculate bank angle from roll
+        BankAngle = NormalizeAngle(transform.eulerAngles.z);
+        
+        // Calculate vertical component of lift (how much opposes gravity)
+        VerticalLiftComponent = lastWorldLiftForce.y;
+        
+        // Required lift for level flight = Weight = mass * g
+        RequiredLiftForLevel = Rigidbody.mass * 9.81f;
+        
+        // Stall detection: vertical lift < threshold * required lift
+        // At high bank angles, less vertical lift is available, so stall threshold matters more
+        float liftRatio = RequiredLiftForLevel > 0.01f ? VerticalLiftComponent / RequiredLiftForLevel : 0f;
+        IsStalling = liftRatio < stallWarningThreshold && Velocity.magnitude > minLiftSpeed;
+        
+        // Sink rate = negative vertical velocity (positive = descending)
+        SinkRate = -Rigidbody.linearVelocity.y;
+        
+        // Calculate total drag (parasitic + induced)
+        // Note: This is approximate since we don't track parasitic drag separately
+        currentDragMagnitude = lastInducedDragForce.magnitude;
+        
+        // Lift-to-Drag ratio
+        // L/D = Lift magnitude / Total Drag magnitude
+        // Higher L/D = better glide performance (gliders: 20-50, powered aircraft: 8-15)
+        if (currentDragMagnitude > 0.01f) {
+            LiftToDragRatio = currentLiftMagnitude / currentDragMagnitude;
+            // Clamp to reasonable range
+            LiftToDragRatio = Mathf.Clamp(LiftToDragRatio, 0f, 50f);
+        } else {
+            LiftToDragRatio = 0f;
+        }
+    }
+
     // Calculate aerodynamically-correct yaw torque combining pilot input + adverse yaw + sideslip stability
     float CalculateAerodynamicYawTorque(float dt, float currentYawVelocity, float targetYawVelocity, float steeringPower, float rollCorrection) {
         // 1. PILOT RUDDER INPUT - Basic yaw control
@@ -521,30 +670,36 @@ public class Plane : MonoBehaviour {
         CalculateState(dt);
         CalculateGForce(dt);
         
-        // Clean calculated values output
-        Vector3 eulerAngles = transform.eulerAngles;
-        Vector3 worldVelocity = Rigidbody.linearVelocity;
-        Vector3 gForceDisplay = CalculateGForceForDisplay(dt);
-        float aoaDisplay = GetAOAForDisplay();
+        // Update display-only values (for HUD consumption)
+        CalculateGForceForDisplay(dt);
         
-        // Convert Euler angles to -180 to +180 range
-        float pitchAngle = eulerAngles.x > 180f ? eulerAngles.x - 360f : eulerAngles.x;
-        float yawAngle = eulerAngles.y > 180f ? eulerAngles.y - 360f : eulerAngles.y;
-        float rollAngle = eulerAngles.z > 180f ? eulerAngles.z - 360f : eulerAngles.z;
-        
-           float displayG = DisplayLoadFactor;
-           UpdateThrottle(dt);
+        UpdateThrottle(dt);
 
         if (!Dead) {
             //apply updates
             UpdateThrust();
             UpdateLift();
             UpdateSteering(dt);
+            
+            // Calculate glide performance metrics after forces applied
+            CalculateGlideMetrics();
+            
+            // DEBUG: Log glide metrics once per second
+            if (Time.frameCount % 60 == 0) {
+                Debug.Log($"[GLIDE] L/D: {LiftToDragRatio:F1}, SinkRate: {SinkRate:F2}m/s, " +
+                          $"VertLift: {VerticalLiftComponent:F1}N, Required: {RequiredLiftForLevel:F1}N, " +
+                          $"Stalling: {IsStalling}");
+            }
         } else {
             //align with velocity
             Vector3 up = Rigidbody.rotation * Vector3.up;
             Vector3 forward = Rigidbody.linearVelocity.normalized;
             Rigidbody.rotation = Quaternion.LookRotation(forward, up);
+            
+            // Reset glide metrics when dead
+            LiftToDragRatio = 0f;
+            SinkRate = -Rigidbody.linearVelocity.y;
+            IsStalling = true;
         }
 
         UpdateDrag();

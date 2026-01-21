@@ -67,5 +67,6 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "Fixed-wing-drone-simulator.slnx"
+    "dotnet.defaultSolution": "Fixed-wing-drone-simulator.slnx",
+    "dotnet.preferCSharpExtension": true
 }

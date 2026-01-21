@@ -309,15 +309,15 @@ public class DroneAgent : Agent
 
         float pitch = 0f;
         if (pitchAction == 0) pitch = 1f; // Up arrow pitches up
-        else if (pitchAction == 2) pitch = -1f; // Down arrow pitches down
+        else if (pitchAction == 2) pitch = -0.75f; // Down arrow pitches down
 
         float roll = 0f;
         if (rollAction == 0) roll = 1f;      // roll left
         else if (rollAction == 2) roll = -1f; // roll right
 
         float yaw = 0f;
-        if (yawAction == 0) yaw = -1f;      // Q key yaws left
-        else if (yawAction == 2) yaw = 1f;  // E key yaws right
+        if (yawAction == 0) yaw = -0.5f;      // Q key yaws left
+        else if (yawAction == 2) yaw = 0.5f;  // E key yaws right
 
         if (plane != null)
         {

@@ -33,15 +33,6 @@
       },
       "url": "https://packages.unity.com"
     },
-    "com.unity.ai.navigation": {
-      "version": "2.0.9",
-      "depth": 0,
-      "source": "registry",
-      "dependencies": {
-        "com.unity.modules.ai": "1.0.0"
-      },
-      "url": "https://packages.unity.com"
-    },
     "com.unity.ai.toolkit": {
       "version": "1.0.0-pre.20",
       "depth": 1,
@@ -221,12 +212,6 @@
       "dependencies": {
         "com.unity.modules.subsystems": "1.0.0"
       }
-    },
-    "com.unity.modules.ai": {
-      "version": "1.0.0",
-      "depth": 0,
-      "source": "builtin",
-      "dependencies": {}
     },
     "com.unity.modules.androidjni": {
       "version": "1.0.0",
