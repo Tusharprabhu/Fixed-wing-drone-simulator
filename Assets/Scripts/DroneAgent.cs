@@ -13,6 +13,7 @@ public class DroneAgent : Agent
     private Rigidbody rb;
     private Transform environmentParent;
     private Vector3 episodeStartPosition;
+    private TrailRenderer trailRenderer;
     
     [Header("Start Position - Local Coordinates")]
     [SerializeField] private Vector3 localStartPosition = new Vector3(0f, 10f, 0f);
@@ -64,6 +65,7 @@ public class DroneAgent : Agent
         
         plane = GetComponent<Plane>();
         rb = GetComponent<Rigidbody>();
+        trailRenderer = GetComponent<TrailRenderer>();
         
         if (plane == null)
             Debug.LogError($"DroneAgent: Plane component not found on {gameObject.name}");
@@ -386,6 +388,13 @@ public class DroneAgent : Agent
                     float completionBonus = 5f; // Base completion bonus
                     AddReward(completionBonus);
                     Debug.Log($"<color=lime>[{gameObject.name}] ALL {totalGoals} GOALS COMPLETED! Episode Success! Bonus: +{completionBonus:F1}</color>");
+                    
+                    // Clear trail when last reward is taken
+                    if (trailRenderer != null)
+                    {
+                        trailRenderer.Clear();
+                    }
+                    
                     EndEpisode();
                     return;
                 }
