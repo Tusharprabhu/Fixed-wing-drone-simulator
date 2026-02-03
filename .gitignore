@@ -36,6 +36,9 @@ __pycache__/
 *.py[cod]
 pip-wheel-metadata/
 
+# AIRL folder
+Assets/AIRL/
+
 
 # Temp and backup
 Temp/

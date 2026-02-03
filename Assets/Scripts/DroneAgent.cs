@@ -336,7 +336,20 @@ public class DroneAgent : Agent
         
         AddReward(-0.001f);
     }
+   
 
+
+
+
+
+
+
+
+
+
+
+
+   
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Reward"))

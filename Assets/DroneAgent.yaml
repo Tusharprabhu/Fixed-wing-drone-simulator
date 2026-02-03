@@ -24,7 +24,7 @@ behaviors:
         strength: 1.0
 
     behavioral_cloning:
-      demo_path: Assets/RECORDING/final.demo
+      demo_path: Assets/RECORDING/wth.demo
       strength: 0.5
       steps: 1000000
 

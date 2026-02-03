@@ -566,8 +566,8 @@ public class Plane : MonoBehaviour {
         var speed = Mathf.Max(0, LocalVelocity.z);
         var steeringPower = steeringCurve.Evaluate(speed);
 
-        // Asymmetric pitch: pitch up = 1.5x, pitch down = 0.75x
-        float pitchMultiplier = controlInput.x > 0f ? 0.75f : 1.5f;
+        // Asymmetric pitch: pitch up = 1.5x, pitch down = 0.25x
+        float pitchMultiplier = controlInput.x > 0f ? 0.25f : 1.5f;
         float pitchTargetAV = controlInput.x * turnSpeed.x * steeringPower * pitchMultiplier;
         
         var targetAV = new Vector3(
