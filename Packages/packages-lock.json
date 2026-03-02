@@ -199,6 +199,13 @@
         "com.unity.modules.imgui": "1.0.0"
       }
     },
+    "jp.keijiro.pcx": {
+      "version": "https://github.com/keijiro/Pcx.git?path=/Packages/jp.keijiro.pcx",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "ffc344756b9320584a02a738c8b9d328090e1bc3"
+    },
     "com.unity.modules.accessibility": {
       "version": "1.0.0",
       "depth": 0,

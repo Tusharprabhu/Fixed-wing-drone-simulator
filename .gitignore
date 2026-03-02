@@ -73,6 +73,10 @@ node_modules/
 
 # Uncomment this line if you wish to ignore the asset store tools plugin
 # /[Aa]ssets/AssetStoreTools*
+# Point cloud data
+
+Assets/point_cloud/
+Assets/Copernicus-Data.zip
 
 # TextMesh Pro files
 [Aa]ssets/TextMesh*Pro/
