@@ -178,3 +178,6 @@ DroneSimulator/
 # Point cloud files
 Assets/point_cloud/
 
+# LIDAR Pcx project
+LIDAR/
+
