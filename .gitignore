@@ -175,3 +175,6 @@ DroneSimulator/
 */FlightSim_*/
 */_Data/
 
+# Point cloud files
+Assets/point_cloud/
+

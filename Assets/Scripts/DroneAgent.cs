@@ -15,16 +15,10 @@ public class DroneAgent : Agent
     private Vector3 episodeStartPosition;
     private TrailRenderer trailRenderer;
     
-    [Header("Start Position - Local Coordinates")]
-    [SerializeField] private Vector3 localStartPosition = new Vector3(0f, 10f, 0f);
+    // Hardcoded world start position and rotation (from scene: X:2, Y:2, Z:20, RotY:10)
+    private readonly Vector3 startPosition = new Vector3(2f, 2f, 20f);
+    private readonly Quaternion startRotation = Quaternion.Euler(0f, 10f, 0f);
     [SerializeField] private float initialSpeed = 20f;
-    [Header("Start Position Randomization")]
-    [Tooltip("Enable randomizing the local start Y each episode")]
-    [SerializeField] private bool randomizeStartY = true;
-    [Tooltip("Min start local Y (used when randomizeStartY is true)")]
-    [SerializeField] private float startYMin = 10f;
-    [Tooltip("Max start local Y (used when randomizeStartY is true)")]
-    [SerializeField] private float startYMax = 30f;
     
     [Header("Goal Tracking")]
     private Transform targetGoal;
@@ -34,17 +28,17 @@ public class DroneAgent : Agent
     
     [Header("Sphere Position Randomization")]
     [Tooltip("Randomize sphere X position each episode")]
-    [SerializeField] private bool randomizeSphereX = true;
+    [SerializeField] private bool randomizeSphereX = false;
     [SerializeField] private float sphereXMin = -10f;
     [SerializeField] private float sphereXMax = 30f;
     [Tooltip("Randomize sphere Y position each episode")]
-    [SerializeField] private bool randomizeSphereY = true;
+    [SerializeField] private bool randomizeSphereY = false;
     [SerializeField] private float sphereYMin = 10f;
     [SerializeField] private float sphereYMax = 30f;
     
     [Header("Training Area")]
     [SerializeField] private Transform trainingArea;
-    [SerializeField] private float maxDistanceFromStart = 1500f;
+    private const float maxDistanceFromStart = 300f;
 
     [Header("Stuck Detection")]
     [SerializeField] private float stuckSpeedThreshold = 2f;
@@ -140,29 +134,10 @@ public class DroneAgent : Agent
         
         if (plane == null || rb == null) return;
 
-        Vector3 runtimeLocalStart = localStartPosition;
-        if (randomizeStartY)
-        {
-            runtimeLocalStart.y = Random.Range(startYMin, startYMax);
-        }
-
-        Vector3 worldStartPosition;
-        Quaternion startRotation;
+        // Always reset to the exact hardcoded position — no parent offset
+        episodeStartPosition = startPosition;
         
-        if (environmentParent != null)
-        {
-            worldStartPosition = environmentParent.TransformPoint(runtimeLocalStart);
-            startRotation = environmentParent.rotation;
-        }
-        else
-        {
-            worldStartPosition = runtimeLocalStart;
-            startRotation = Quaternion.identity;
-        }
-        
-        episodeStartPosition = worldStartPosition;
-        
-        plane.ResetTo(worldStartPosition, startRotation, initialSpeed);
+        plane.ResetTo(startPosition, startRotation, initialSpeed);
         rb.isKinematic = false;
         
         currentGoalIndex = 0;
@@ -170,9 +145,7 @@ public class DroneAgent : Agent
         ReactivateAllGoals();
         RefreshGoals();
         UpdateTargetGoal();
-        // Enforce runtime max distance to 1500m as requested
-        maxDistanceFromStart = 1500f;
-        
+          
         stuckTimer = 0f;
         timeSinceLastInteraction = 0f;
         
@@ -186,30 +159,11 @@ public class DroneAgent : Agent
         {
             // Find only actual sphere objects, not parent containers
             var allRewards = trainingArea.GetComponentsInChildren<Transform>(true)
-                .Where(t => t.name.StartsWith("Sphere (") && t.name.Contains(")"))
-                .OrderBy(t => {
-                    // Extract number from sphere name for proper numerical ordering
-                    string numberStr = t.name.Substring(8, t.name.Length - 9); // Extract number between "Sphere (" and ")"
-                    return int.TryParse(numberStr, out int number) ? number : 0;
-                });
+                .Where(t => t.name.StartsWith("Sphere (") && t.name.Contains(")"));
             
+            // Only reactivate - never move. Positions stay as placed in the scene.
             foreach (var reward in allRewards)
             {
-                Vector3 localPos = reward.localPosition;
-                
-                // Randomize X position if enabled
-                if (randomizeSphereX)
-                {
-                    localPos.x = Random.Range(sphereXMin, sphereXMax);
-                }
-                
-                // Randomize Y position if enabled
-                if (randomizeSphereY)
-                {
-                    localPos.y = Random.Range(sphereYMin, sphereYMax);
-                }
-                
-                reward.localPosition = localPos;
                 reward.gameObject.SetActive(true);
             }
         }
@@ -246,7 +200,7 @@ public class DroneAgent : Agent
         }
 
         float speed = rb.linearVelocity.magnitude;
-        if (speed < stuckSpeedThreshold && transform.position.y < 20f)
+        if (speed < stuckSpeedThreshold)
         {
             stuckTimer += Time.fixedDeltaTime;
             if (stuckTimer > stuckResetTime)
